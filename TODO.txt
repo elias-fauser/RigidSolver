@@ -7,3 +7,4 @@ Roadmap:
 Implementation:
 * Destructor
 * APIVAR Limits
+* Error when reloading shaders
