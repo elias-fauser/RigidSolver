@@ -84,6 +84,7 @@ private:
 	SolverModel vaModel;
 	VertexArray vaParticles;
 	VertexArray vaPlane;
+	VertexArray vaBox;
 
 	// FBOs
 	GLuint solverFBO;

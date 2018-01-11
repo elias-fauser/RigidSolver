@@ -17,9 +17,7 @@ uniform float k_exp;       //!< specular exponent
 uniform vec3 lightDirection;
 uniform vec3 normal;
 
-in vec2 texCoord;
-
-layout(location = 0) out vec4 frag_color;
+in vec2 texCoords;
 
 // --------------------------------------------------
 //   Blinn-Phong shading model
@@ -42,5 +40,5 @@ vec3 blinnPhong(vec3 n, vec3 l, vec3 v) {
 // --------------------------------------------------
 void main() {
 
-    frag_color = vec4(1.0f);
+    gl_FragColor = vec4(texCoords.x, 0.0, texCoords.y, 1.0);
 }

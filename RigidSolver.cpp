@@ -15,22 +15,33 @@
 // --------------------------------------------------
 
 const float PLANE_VERTICES[] = {
-	 .5f,  .5f, 0.0f, 1.0f,
-	 .5f, -.5f, 0.0f, 1.0f,
-	-.5f, -.5f, 0.0f, 1.0f,
-	-.5f,  .5f, 0.0f, 1.0f,
+	 .5f, 0.0f,  .5f, 1.0f,
+	 .5f, 0.0f, -.5f, 1.0f,
+	-.5f, 0.0f, -.5f, 1.0f,
+	-.5f, 0.0f,  .5f, 1.0f,
 };
 
+/*
+          z
+		 /
+      y
+   3 -|---- 0
+   /  |    /
+  /   *   /    - x
+ /       /
+2 ----- 1
+
+*/
 const float PLANE_TEXCOORDS[] = {
 	 1.f,  1.f,
-	 1.f, -1.f,
-	-1.f, -1.f,
-	-1.f,  1.f,
+	 0.f,  1.f,
+	 0.f,  0.f,
+	 1.f,  0.f,
 };
 
-const float PLANE_INDICES[] = {
+const int PLANE_INDICES[] = {
 	0, 1, 2,
-	3, 0, 2
+	0, 2, 3
 };
 
 // --------------------------------------------------
@@ -64,8 +75,7 @@ bool RigidSolver::Activate(void) {
 	// --------------------------------------------------
 	int camHandle = this->AddManipulator("view", &this->viewMX, Manipulator::MANIPULATOR_ORBIT_VIEW_3D);
 	this->SelectCurrentManipulator(camHandle);
-	this->SetManipulatorRotation(camHandle, glm::vec3(1, 0, 0), 50.0f);
-	this->SetManipulatorDolly(camHandle, -1.5f);
+	this->SetManipulatorDolly(camHandle, -2.5f);
 
 	// --------------------------------------------------
 	//  Registration of UI attributes
@@ -78,11 +88,12 @@ bool RigidSolver::Activate(void) {
 	fovY.Set(this, "fovY");
 	fovY.Register();
 	fovY.SetMinMax(1.0, 100.0);
+	fovY = 50.0f;
 
 	// Solver settings
 	solverStatus.Set(this, "Active");
 	solverStatus.Register();
-	solverStatus.SetValue(false);
+	solverStatus = false;
 
 	spawnTime.Set(this, "SpawnTime(sec)");
 	spawnTime.Register();
@@ -105,15 +116,15 @@ bool RigidSolver::Activate(void) {
 	// --------------------------------------------------
 	//  Creating shaders and geometry
 	// --------------------------------------------------    
-	commonFunctionsVertShaderName = pathName + std::string("/resources/beauty.vert");
+	commonFunctionsVertShaderName = pathName + std::string("/resources/common.fncs");
 	particleValuesVertShaderName = pathName + std::string("/resources/particleValues.vert");
-	particleValuesFragShaderName = pathName + std::string("/resources/particleValues.vert");
+	particleValuesFragShaderName = pathName + std::string("/resources/particleValues.frag");
 	beautyVertShaderName = pathName + std::string("/resources/beauty.vert");
 	beautyFragShaderName = pathName + std::string("/resources/beauty.frag");
-
+	
 	vaPlane.Create(4);
 	vaPlane.SetArrayBuffer(0, GL_FLOAT, 4, PLANE_VERTICES);
-	vaPlane.SetElementBuffer(0, 3 * 2, PLANE_INDICES);
+	vaPlane.SetElementBuffer(0, 2 * 3, PLANE_INDICES);
 	vaPlane.SetArrayBuffer(1, GL_FLOAT, 2, PLANE_TEXCOORDS);
 
 	reloadShaders();
@@ -123,7 +134,11 @@ bool RigidSolver::Activate(void) {
 	// --------------------------------------------------  
 
 	initSolverFBO();
-	initRigidDataStructures();
+	// initRigidDataStructures();
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearDepth(1.0);
+	glEnable(GL_DEPTH_TEST);
 
     return true;
 }
@@ -293,7 +308,7 @@ bool RigidSolver::collisionGridPass(void)
 }
 
 bool RigidSolver::beautyPass(void) {
-
+	
 	// Set up the proj Matrices
 	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
 
@@ -325,14 +340,16 @@ bool RigidSolver::beautyPass(void) {
 
 	// Draw ground plane
 	vaPlane.Bind();
-	glDrawElements(GL_TRIANGLES, 2, GL_UNSIGNED_INT, 0);
+	glDrawElements(GL_TRIANGLES, 2 * 3, GL_UNSIGNED_INT, nullptr);
 	vaPlane.Release();
 
 	// Instanced drawing of rigid bodies
-	vaModel.Bind();
-	// Instanced drawing of the rigid bodies
-	// glDrawElementsInstanced(GL_TRIANGLES, vaModel.GetNumVertices(), GL_UNSIGNED_INT, 0, spawnedObjects); // numInstances);
-	vaModel.Release();
+	if (modelFiles.GetValue() != NULL){
+		vaModel.Bind();
+		// Instanced drawing of the rigid bodies
+		// glDrawElementsInstanced(GL_TRIANGLES, vaModel.GetNumVertices(), GL_UNSIGNED_INT, 0, spawnedObjects); // numInstances);
+		vaModel.Release();
+	}
 
 	shaderBeauty.Release();
 
@@ -466,8 +483,9 @@ bool RigidSolver::continueSimulation(void)
 
 bool RigidSolver::reloadShaders(void)
 {
+	// FIXME: Creates error on reload trigger
 	// FIXME: May have to create Shader here only and then link it later
-	shaderBeauty.AttachShaderFromFile(commonFunctionsVertShaderName.c_str(), GL_VERTEX_SHADER, false);
+	shaderBeauty.AttachShaderFromFile(commonFunctionsVertShaderName.c_str(), GL_VERTEX_SHADER, true);
 	shaderBeauty.CreateProgramFromFile(beautyVertShaderName.c_str(), beautyFragShaderName.c_str());
 
 	shaderBeauty.PrintInfo();
