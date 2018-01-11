@@ -1,0 +1,9 @@
+Roadmap:
+* Rendering of ground plane and one Model
+* Implementing Solver so that gravity affects models/particles. Models fall. Spawning with set spawn time
+* Collision are detected
+* Ground plane collision
+
+Implementation:
+* Destructor
+* APIVAR Limits
