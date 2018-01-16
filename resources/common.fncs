@@ -1,5 +1,5 @@
 #version 330
 
-
-void main() {
+vec2 rigidBodyIdx2TextureCoords() {
+	return vec2(0,0);
 }

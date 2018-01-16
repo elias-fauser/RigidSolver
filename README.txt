@@ -11,5 +11,5 @@ External Libraries:
 	* OBJ Loader taken from https://github.com/Bly7/OBJ-Loader
 
 Models were taken from the OpenGL repository of @McNopper (https://github.com/McNopper/OpenGL).
-	* Chess Pawn OBJ: https://github.com/McNopper/OpenGL/blob/master/Binaries/ChessPawn.obj
+	* Chess Pawn OBJ: https://github.com/scenevr/chess/blob/master/models/pawn.obj
 	* Teapot OBJ: https://github.com/McNopper/OpenGL/blob/master/Binaries/teapot.obj

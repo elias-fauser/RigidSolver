@@ -8,3 +8,5 @@ Implementation:
 * Destructor
 * APIVAR Limits
 * Error when reloading shaders
+* Initialize Position Textures with emitter position
+* How to handle spawning if time is too low and objects intersect (Forces will be great)
