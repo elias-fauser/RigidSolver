@@ -1,6 +1,6 @@
 #include "SolverModel.h"
 
-const int NUM_DEPTH_PEEL_PASSES = 2;
+const int NUM_DEPTH_PEEL_PASSES = 4;
 
 SolverModel::SolverModel()
 {
@@ -44,7 +44,6 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 		// Init empty image (to currently bound FBO)
 		// TODO: Fix the dimensions
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, 1, 1, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i], 0);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
@@ -63,6 +62,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 		// Depth unit 0
 		GLuint attachments[] = { GL_COLOR_ATTACHMENT0 + A };
 		glDrawBuffers(1, attachments);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, textures[i], 0);
 
 		glDepthMask(false);
 		glDepthFunc(GL_GREATER);
@@ -105,4 +105,25 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 int SolverModel::getNumParticles(void)
 {
 	return numParticles;
+}
+
+/**
+* \brief Returns a pointer to the models particles positions. The number of particles can be queried with `getNumParticles()`
+* \note The positions are a vector of size 3, relative to the models center of mass
+*
+* \returns Number of particles as int
+*/
+float const * SolverModel::getParticlePositions(void)
+{
+	return particlePositions;
+}
+
+void SolverModel::setInertiaTensor(glm::mat3 tensor)
+{
+	inertiaTensor = tensor;
+}
+
+glm::mat3 SolverModel::getInertiaTensor(void)
+{
+	return inertiaTensor;
 }
