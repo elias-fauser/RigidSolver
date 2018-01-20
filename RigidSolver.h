@@ -40,12 +40,13 @@ private:
 	virtual bool particleValuePass(void);
 	virtual bool collisionGridPass(void);
 	virtual bool collisionPass(void);
-	virtual bool momentaPass(void);
 	virtual bool solverPass(void);
 	virtual bool beautyPass(void);
 
 	virtual void createFBOTexture(GLuint &outID, const GLenum internalFormat, const GLenum format, const GLenum type, GLint filter, int width, int height, void * data);
 	virtual bool checkFBOStatus(void);
+	virtual int getRigidBodyTextureSizeLength(void);
+	virtual int getParticleTextureSideLength(void);
 
 	void fileChanged(FileEnumVar<RigidSolver> &var);
 	void particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var);
@@ -56,13 +57,14 @@ private:
 	APIVar<RigidSolver, BoolVarPolicy> drawParticles;
 	APIVar<RigidSolver, BoolVarPolicy> solverStatus;
 	APIVar<RigidSolver, FloatVarPolicy> particleSize;
+	APIVar<RigidSolver, IntVarPolicy> numRigidBodies;
 	APIVar<RigidSolver, FloatVarPolicy> gravity;
 	APIVar<RigidSolver, FloatVarPolicy> modelMass;
 	APIVar<RigidSolver, IntVarPolicy> spawnTime;
 
 	// Paths - needed for reloadShaders()
 	std::string commonFunctionsVertShaderName;
-	std::string particleValuesVertShaderName, particleValuesFragShaderName;
+	std::string particleValuesVertShaderName, particleValuesFragShaderName, particleValuesGeomShaderName;
 	std::string beautyVertShaderName, beautyFragShaderName;
 	std::string momentaVertShaderName, momentaFragShaderName;
 
@@ -96,10 +98,13 @@ private:
 	// Textures
 	GLuint gridTex;
 
-	GLuint rigidBodyPositionsTex;
-	GLuint rigidBodyQuaternionsTex;
+	bool texSwitch = false; // false=1, true=2
+	GLuint rigidBodyPositionsTex1, rigidBodyPositionsTex2;
+	GLuint rigidBodyQuaternionsTex1, rigidBodyQuaternionsTex2;
+	GLuint rigidBodyLinearMomentum1, rigidBodyLinearMomentum2;
+	GLuint rigidBodyAngularMomentum1, rigidBodyAngularMomentum2;
 
-	GLuint particlePositionsTex;
+	GLuint particleRelativePositionsTex;
 	GLuint particleVelocityTex;
 	GLuint particleCoMTex; // Center of Mass
 
