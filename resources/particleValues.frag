@@ -2,11 +2,12 @@
 
 // Outputs
 layout(location = 0) out vec3 particlePosition;
-layout(location = 1) out vec4 particleVelocity;
+layout(location = 1) out vec3 particleVelocity;
 
 uniform mat3 invIntertiaTensor;
+uniform float mass;
 
-in vec3 particlePosition;
+in vec3 initParticlePosition;
 in vec4 rigidQuaternion;
 in vec3 rigidPosition;
 in vec3 rigidLinearMomentum;
@@ -29,10 +30,10 @@ mat3 quaternion2rotation(vec4 q){
 void main() {
 	
 	mat3 quaternionRotation = quaternion2rotation(rigidQuaternion);
-	vec3 relativePostition = quaternionRotation * particlePosition;
+	vec3 relativePosition = quaternionRotation * initParticlePosition;
 
 	// Calculate velocity
-	rigidVelocity = rigidLinearMomentum / mass;
+	vec3 rigidVelocity = rigidLinearMomentum / mass;
 
 	// Calculate angular velocity
 	vec3 rigidAngularVelocity = quaternionRotation * invIntertiaTensor * quaternionRotation * rigidAngularMomentum;
