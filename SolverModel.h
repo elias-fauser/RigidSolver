@@ -1,6 +1,7 @@
 #pragma once
 #include "SolverGrid.h"
 #include "VertexArray.h"
+#include "GLShader.h"
 
 class SolverModel: public VertexArray
 {
@@ -20,6 +21,7 @@ private:
 	float * particlePositions;
 	int numParticles = -1;
 	glm::mat3 inertiaTensor;
+	GLShader peelingShader;
 
 };
 
