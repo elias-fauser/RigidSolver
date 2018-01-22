@@ -54,7 +54,7 @@ SolverGrid::~SolverGrid()
 {
 }
 
-glm::mat4 SolverGrid::getModelMatrix(void)
+glm::mat4 SolverGrid::getModelMatrix(void) const
 {
 	return modelMX;
 }
@@ -74,7 +74,7 @@ void SolverGrid::scale(glm::vec3 scaling)
 	modelMX = glm::scale(modelMX, scaling);
 }
 
-float SolverGrid::getVoxelLength(void)
+float SolverGrid::getVoxelLength(void) const
 {
 	return voxelLength;
 }
@@ -84,16 +84,33 @@ void SolverGrid::setVoxelLength(float size)
 	voxelLength = size;
 }
 
-glm::vec3 SolverGrid::getTopLeftFront(void)
+glm::vec3 SolverGrid::getTopLeftFront(void) const
 {
 	glm::vec4 translated = this->modelMX * glm::vec4(topLeftFront, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
 }
 
-glm::vec3 SolverGrid::getBtmRightBack(void)
+glm::vec3 SolverGrid::getBtmRightBack(void) const
 {
 	glm::vec4 translated = this->modelMX * glm::vec4(btmRightBack, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
+}
+/**
+* \brief Returns the size of the grid
+*
+*/
+glm::vec3 SolverGrid::getGridSize(void) const
+{
+	return glm::abs(getBtmRightBack() - getTopLeftFront());
+}
+
+/**
+* \brief Returns the resolution - how many voxel per axis - for each axis
+*
+*/
+glm::ivec3 SolverGrid::getGridResolution(void) const
+{
+	return glm::ivec3(getGridSize() / getVoxelLength());
 }
 
 glm::vec3 SolverGrid::getEmitterVelocity(void)

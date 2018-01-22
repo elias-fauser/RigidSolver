@@ -11,16 +11,18 @@ public:
 	SolverGrid(int xVoxels, int yVoxels, int zVoxels);
 	~SolverGrid();
 
-	glm::mat4 getModelMatrix(void);
+	glm::mat4 getModelMatrix(void) const;
 	void translate(glm::vec3 translation);
 	void translate(float x, float y, float z);
 	void scale(glm::vec3 scaling);
 
-	float getVoxelLength(void);
+	float getVoxelLength(void) const;
 	void  setVoxelLength(float size);
 
-	glm::vec3 getTopLeftFront(void);
-	glm::vec3 getBtmRightBack(void);
+	glm::vec3 getTopLeftFront(void) const;
+	glm::vec3 getBtmRightBack(void) const;
+	glm::vec3 getGridSize(void) const;
+	glm::ivec3 getGridResolution(void) const;
 
 	glm::vec3 getEmitterVelocity(void);
 	glm::vec3 getEmitterPosition(void);
