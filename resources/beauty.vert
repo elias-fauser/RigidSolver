@@ -6,6 +6,7 @@ uniform mat4 viewMX;
 uniform mat4 modelMX;
 
 uniform int positionByTexture;
+uniform int rigidBodyTextureEdgeLength;
 
 uniform sampler2D rigidBodyPositions;
 uniform sampler2D rigidBodyQuaternions;
@@ -21,8 +22,10 @@ out vec2 texCoords;
 out vec3 normal;
 out vec3 position;
 
-vec2 rigidBodyIdx2TextureCoords(int idx) {
-	return vec2(0,0);
+ivec2 rigidBodyIdx2TextureCoords(int idx) {
+	int x = idx / rigidBodyTextureEdgeLength;
+	int y = idx % rigidBodyTextureEdgeLength;
+	return ivec2(x,y);
 }
 
 mat3 quaternion2rotation(vec4 q){
@@ -48,12 +51,14 @@ void main() {
 		gl_Position = projMX * viewMX * modelMX * in_position;
 	}
 	else {
-		vec2 positionCoords = rigidBodyIdx2TextureCoords(gl_InstanceID);
-		vec4 position = texture(rigidBodyPositions, positionCoords);
-		vec4 quaternion = texture(rigidBodyQuaternions, positionCoords);
+		ivec2 positionCoords = rigidBodyIdx2TextureCoords(gl_InstanceID);
+		vec4 position = texelFetch(rigidBodyPositions, positionCoords, 0);
+		vec4 quaternion = texelFetch(rigidBodyQuaternions, positionCoords, 0);
 
 		mat3 rotation = quaternion2rotation(quaternion);
 		// gl_Position =  vec4(rotation * position.xyz, 1.0);
+
+		// TODO: Apply quaternion here
 		gl_Position = projMX * viewMX * modelMX * (in_position + vec4(position));
 	}
 

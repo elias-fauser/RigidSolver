@@ -35,10 +35,10 @@ vec2 invocationID2particleCoords(int idx, int rigidID, int particleID){
 
 }
 
-vec2 rigidBodyIdx2TextureCoords(int idx) {
+ivec2 rigidBodyIdx2TextureCoords(int idx) {
 	int x = idx / rigidBodyTextureEdgeLength;
 	int y = idx % rigidBodyTextureEdgeLength;
-	return vec2(x,y);
+	return ivec2(x,y);
 }
 
 void main() {    
@@ -53,9 +53,9 @@ void main() {
 	initParticlePosition = (gl_Position / gl_Position.w).xyz;
 
 	// Fill all the out variables needed
-	vec2 rigidBodyCoords = rigidBodyIdx2TextureCoords(rigidBodyID);
-	rigidPosition = texture(rigidBodyPositions, rigidBodyCoords).xyz;
-	rigidQuaternion = texture(rigidBodyQuaternions, rigidBodyCoords);
-	rigidAngularMomentum = texture(rigidBodyAngularMomentums, rigidBodyCoords).xyz;
-	rigidLinearMomentum = texture(rigidBodyLinearMomentums, rigidBodyCoords).xyz;
+	ivec2 rigidBodyCoords = rigidBodyIdx2TextureCoords(rigidBodyID);
+	rigidPosition = texelFetch(rigidBodyPositions, rigidBodyCoords, 0).xyz;
+	rigidQuaternion = texelFetch(rigidBodyQuaternions, rigidBodyCoords, 0);
+	rigidAngularMomentum = texelFetch(rigidBodyAngularMomentums, rigidBodyCoords, 0).xyz;
+	rigidLinearMomentum = texelFetch(rigidBodyLinearMomentums, rigidBodyCoords, 0).xyz;
 }

@@ -7,11 +7,11 @@ uniform mat4 projMX;
 uniform mat4 viewMX;
 uniform mat4 modelMX;
 
-out vec2 texCoord;
+out vec3 texCoord;
 
 void main() {
 	// Apply transformations to model
 	gl_Position = projMX * viewMX * modelMX * in_position;
 	
-	texCoord = in_texCoord;
+	texCoord = (in_position / in_position.w).xyz;
 }
