@@ -10,6 +10,7 @@
 #include "glm/ext.hpp"
 #include "OBJ_Loader.h"
 #include <iosfwd>
+#include "lodepng.h"
 
 // --------------------------------------------------
 //  Ground plane
@@ -64,7 +65,7 @@ const int MAX_NUMBER_OF_RIGID_BODIES = 64 * 64; // 4096
 const int MAX_NUMBER_OF_PARTICLES = MAX_NUMBER_OF_RIGID_BODIES * 4; // Assuming voxel size == particle diameter -> so max of 4 particles
 
 // FBO attachments
-enum ColorAttachments {
+enum RigidBodyAttachments {
 	RigidBodyPositionAttachment1 = GL_COLOR_ATTACHMENT0,
 	RigidBodyPositionAttachment2 = GL_COLOR_ATTACHMENT1,
 	RigidBodyQuaternionAttachment1 = GL_COLOR_ATTACHMENT2,
@@ -73,10 +74,17 @@ enum ColorAttachments {
 	RigidBodyLinearMomentumAttachment2 = GL_COLOR_ATTACHMENT5,
 	RigidBodyAngularMomentumAttachment1 = GL_COLOR_ATTACHMENT6,
 	RigidBodyAngularMomentumAttachment2 = GL_COLOR_ATTACHMENT7,
-	ParticlePositionAttachment = GL_COLOR_ATTACHMENT8,
-	ParticleVelocityAttachment = GL_COLOR_ATTACHMENT9,
-	ParticleForceAttachment = GL_COLOR_ATTACHMENT10,
-	GridIndiceAttachment = GL_COLOR_ATTACHMENT11
+};
+
+enum ParticleAttachments {
+	ParticlePositionAttachment = GL_COLOR_ATTACHMENT0,
+	ParticleVelocityAttachment = GL_COLOR_ATTACHMENT1,
+	ParticleForceAttachment = GL_COLOR_ATTACHMENT2,
+
+};
+
+enum GridAttachments {
+	GridIndiceAttachment = GL_COLOR_ATTACHMENT0
 };
 
 // Declaration of static vertex arrays
@@ -190,7 +198,7 @@ bool RigidSolver::Activate(void) {
 
 	// Setup particle geometry
 	vaParticleVertice.Create(1);
-	vaParticleVertice.SetArrayBuffer(0, GL_POINT, 4, PARTICLE_BASE_VERTICE);
+	vaParticleVertice.SetArrayBuffer(0, GL_FLOAT, 4, PARTICLE_BASE_VERTICE);
 
 	reloadShaders();
 
@@ -198,7 +206,7 @@ bool RigidSolver::Activate(void) {
 	//  Init
 	// --------------------------------------------------  
 
-	bool status = initSolverFBO();
+	bool status = initSolverFBOs();
 	// initRigidDataStructures();
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -262,8 +270,6 @@ bool RigidSolver::Render(void) {
 	// --------------------------------------------------  
 
 	if (solverStatus && modelFiles.GetValue() != NULL) {
-		// All the calculation steps are done on the solverFBO
-		glBindFramebuffer(GL_FRAMEBUFFER, solverFBO);
 
 		// Setting to orthographic since the calculations are view independent
 		// The ortho is used for depth peeling and grid lookup
@@ -282,7 +288,6 @@ bool RigidSolver::Render(void) {
 		// Particle positions - Determine the momenta and quaternions
 		solverPass();
 
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 
 	// --------------------------------------------------
@@ -400,7 +405,7 @@ bool RigidSolver::loadModel(float * vertices, int * indices, int num) {
 	vaModel.createParticles(&grid);
 
 	// Update the FBO to match the new number of particles
-	initSolverFBO();
+	initSolverFBOs();
 
 	// Reset simulation to restart everything
 	resetSimulation();
@@ -439,6 +444,9 @@ bool RigidSolver::loadModel(float * vertices, int * indices, float * texCoords, 
 
 bool RigidSolver::particleValuePass(void)
 {
+
+	glBindFramebuffer(GL_FRAMEBUFFER, particlesFBO);
+
 	shaderParticleValues.Bind();
 
 	// Bind for reading and writing
@@ -506,11 +514,15 @@ bool RigidSolver::particleValuePass(void)
 
 	shaderParticleValues.Release();
 
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	return false;
 }
 
 bool RigidSolver::collisionGridPass(void)
 {
+
+	glBindFramebuffer(GL_FRAMEBUFFER, gridFBO);
 
 	// --------------------------------------------------
 	//  Initialization
@@ -588,6 +600,7 @@ bool RigidSolver::collisionGridPass(void)
 	// --------------------------------------------------   
 
 	glDisable(GL_STENCIL_TEST);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	return false;
 }
@@ -597,6 +610,8 @@ bool RigidSolver::collisionPass() {
 	// Shader calculates grid positions
 	// Tests for collisions
 	// Calculates forces and writes them back to force texture
+
+	glBindFramebuffer(GL_FRAMEBUFFER, particlesFBO);
 
 	shaderCollision.Bind();
 
@@ -625,6 +640,8 @@ bool RigidSolver::collisionPass() {
 
 	shaderCollision.Release();
 
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	return false;
 }
 
@@ -634,9 +651,12 @@ bool RigidSolver::solverPass(void)
 	// Calculates inertia tensor
 	// Determines
 
+	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
+
 	shaderMomentaCalculation.Bind();
 
 	glUniform1f(shaderMomentaCalculation.GetUniformLocation("mass"), modelMass);
+	glUniform1i(shaderCollision.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
 
 	// Output textures
 	GLuint attachments[] = { RigidBodyPositionAttachment1, RigidBodyQuaternionAttachment1 };
@@ -656,6 +676,9 @@ bool RigidSolver::solverPass(void)
 	glDrawArraysInstanced(GL_PATCHES, 0, 1, spawnedObjects * vaModel.getNumParticles());
 
 	shaderMomentaCalculation.Release();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	return false;
 }
 
@@ -754,11 +777,144 @@ bool RigidSolver::beautyPass(void) {
 /**
 * @brief Inits the solver FBO with the needed textures
 */
-bool RigidSolver::initSolverFBO() {
+bool RigidSolver::initSolverFBOs() {
 
-	glGenFramebuffers(1, &solverFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, solverFBO);
+	// Init the FBOs
+	initRigidFBO();
+	initParticleFBO();
+	initGridFBO();
 
+	// Finally Check FBO status
+	bool result = checkFBOStatus();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return result;
+
+}
+
+bool RigidSolver::initRigidFBO(void)
+{
+
+	glGenFramebuffers(1, &rigidBodyFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
+
+	updateRigidBodies();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return true;
+}
+
+bool RigidSolver::initParticleFBO(void)
+{
+	glGenFramebuffers(1, &particlesFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, particlesFBO);
+
+	updateParticles();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return true;
+}
+
+bool RigidSolver::initGridFBO(void)
+{
+	glGenFramebuffers(1, &gridFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, gridFBO);
+
+	updateGrid();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return true;
+}
+
+bool RigidSolver::resetSimulation(void)
+{
+	solverStatus = true;
+	spawnedObjects = 0;
+	lastSpawn = std::time(0);
+
+	initSolverFBOs();
+
+	return true;
+}
+
+bool RigidSolver::stopSimulation(void)
+{
+	solverStatus = false;
+	return true;
+}
+
+bool RigidSolver::continueSimulation(void)
+{
+	solverStatus = true;
+	return true;
+}
+
+bool RigidSolver::reloadShaders(void)
+{
+	// FIXME: Creates error on reload trigger
+	shaderBeauty.CreateProgramFromFile(beautyVertShaderName.c_str(), beautyFragShaderName.c_str());
+	shaderMomentaCalculation.CreateProgramFromFile(momentaVertShaderName.c_str(), momentaFragShaderName.c_str());
+	shaderParticleValues.CreateProgramFromFile(particleValuesVertShaderName.c_str(), particleValuesFragShaderName.c_str());
+	shaderCollision.CreateProgramFromFile(collisionVertShaderName.c_str(), collisionFragShaderName.c_str());
+	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridFragShaderName.c_str());
+	
+	// The shaders which are used for depth peeling - for code development only
+	vaModel.reloadShaders();
+
+	return true;
+}
+
+bool RigidSolver::updateParticles() {
+	
+	// Texture must be numRegidBodies * numParticlesPerRigidBody long
+	int particleTexEdgeLength = getParticleTextureSideLength();
+
+	createFBOTexture(particlePositionsTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+	createFBOTexture(particleVelocityTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+	createFBOTexture(particleForcesTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+
+	// TODO: Max number of attachments reached
+	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticlePositionAttachment, GL_TEXTURE_2D, particlePositionsTex, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleVelocityAttachment, GL_TEXTURE_2D, particleVelocityTex, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleForceAttachment, GL_TEXTURE_2D, particleForcesTex, 0);
+
+	return true;
+}
+
+bool RigidSolver::updateGrid() {
+	// Must be done on init or when voxel size changes
+
+	// --------------------------------------------------
+	//  Grid Texture
+	// --------------------------------------------------   
+
+	// Assuming diameter particle = voxel edge length -> max 4x particles per voxel
+	glGenTextures(1, &gridTex);
+	glBindTexture(GL_TEXTURE_3D, gridTex);
+
+	// Set the wrap and interpolation parameter
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	// Init empty image (to currently bound FBO)
+	glm::ivec3 gridDimensions = grid.getGridResolution();
+
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, gridDimensions.x, gridDimensions.y, gridDimensions.z, 0, GL_RGBA, GL_UNSIGNED_INT, NULL);
+	glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
+
+	glBindTexture(GL_TEXTURE_3D, 0);
+
+	return false;
+}
+
+bool RigidSolver::updateRigidBodies(void)
+{
 
 	// --------------------------------------------------
 	//  Rigid Body Textures
@@ -826,109 +982,8 @@ bool RigidSolver::initSolverFBO() {
 
 	glDrawBuffer(RigidBodyAngularMomentumAttachment2);
 	glClearBufferfv(GL_COLOR, 0, zeroClear);
-
-	// --------------------------------------------------
-	//  Particle Textures
-	// --------------------------------------------------   
-
-	// Texture must be numRegidBodies * numParticlesPerRigidBody long
-	int particleTexEdgeLength = getParticleTextureSideLength();
-
-	createFBOTexture(particlePositionsTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
-	createFBOTexture(particleVelocityTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
-	createFBOTexture(particleForcesTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
-
-	// TODO: Max number of attachments reached
-	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticlePositionAttachment, GL_TEXTURE_2D, particlePositionsTex, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleVelocityAttachment, GL_TEXTURE_2D, particleVelocityTex, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleForceAttachment, GL_TEXTURE_2D, particleForcesTex, 0);
-
-	// Init the grid texture
-	updateGrid();
-
-	// Finally Check FBO status
-	bool result = checkFBOStatus();
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	return result;
-
-}
-
-bool RigidSolver::initRigidDataStructures(void)
-{
-	return false;
-}
-
-bool RigidSolver::resetSimulation(void)
-{
-	solverStatus = true;
-	spawnedObjects = 0;
-	lastSpawn = std::time(0);
-
-	initSolverFBO();
-
-	return true;
-}
-
-bool RigidSolver::stopSimulation(void)
-{
-	solverStatus = false;
-	return true;
-}
-
-bool RigidSolver::continueSimulation(void)
-{
-	solverStatus = true;
-	return true;
-}
-
-bool RigidSolver::reloadShaders(void)
-{
-	// FIXME: Creates error on reload trigger
-	shaderBeauty.CreateProgramFromFile(beautyVertShaderName.c_str(), beautyFragShaderName.c_str());
-	shaderMomentaCalculation.CreateProgramFromFile(momentaVertShaderName.c_str(), momentaFragShaderName.c_str());
-	shaderParticleValues.CreateProgramFromFile(particleValuesVertShaderName.c_str(), particleValuesFragShaderName.c_str());
-	shaderCollision.CreateProgramFromFile(collisionVertShaderName.c_str(), collisionFragShaderName.c_str());
-	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridFragShaderName.c_str());
 	
-	// The shaders which are used for depth peeling - for code development only
-	vaModel.reloadShaders();
-
 	return true;
-}
-
-bool RigidSolver::updateParticles() {
-	// Must be done when new particles are spawned
-	return false;
-}
-
-bool RigidSolver::updateGrid() {
-	// Must be done on init or when voxel size changes
-
-	// --------------------------------------------------
-	//  Grid Texture
-	// --------------------------------------------------   
-
-	// Assuming diameter particle = voxel edge length -> max 4x particles per voxel
-	glGenTextures(1, &gridTex);
-	glBindTexture(GL_TEXTURE_3D, gridTex);
-
-	// Set the wrap and interpolation parameter
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	// Init empty image (to currently bound FBO)
-	glm::ivec3 gridDimensions = grid.getGridResolution();
-
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, gridDimensions.x, gridDimensions.y, gridDimensions.z, 0, GL_RGBA, GL_UNSIGNED_INT, NULL);
-	glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
-
-	glBindTexture(GL_TEXTURE_3D, 0);
-
-	return false;
 }
 
 // --------------------------------------------------
@@ -1069,7 +1124,7 @@ int RigidSolver::getParticleTextureSideLength(void)
 	return std::ceil(std::sqrt(getRigidBodyTextureSizeLength() * std::max(vaModel.getNumParticles(), 0)));
 }
 
-bool RigidSolver::saveFramebufferTGA(char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type)
+bool RigidSolver::saveFramebufferPNG(char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type)
 {
 	// Function taken from: http://www.flashbang.se/archives/155
 
@@ -1082,24 +1137,30 @@ bool RigidSolver::saveFramebufferTGA(char filename[160], GLuint texture, int wid
 	// get the image data
 	long imageSize = width * height * channels;
 	unsigned char *data = new unsigned char[imageSize];
-	
+
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, type, data);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	// split x and y sizes into bytes
-	int xa = width % 256;
-	int xb = (width - xa) / 256; int ya = height % 256;
-	int yb = (height - ya) / 256;
-	
-	//assemble the header
-	unsigned char header[18] = { 0,0,2,0,0,0,0,0,0,0,0,0, (char)xa, (char)xb, (char)ya,(char)yb, channels * 8, 0 };
+	// Save to PNG
+	std::vector<std::uint8_t> PngBuffer(imageSize);
 
-	// write header and data to file
-	std::fstream File(filename, std::ios::out | std::ios::binary);
-	File.write(reinterpret_cast<char *>(header), sizeof(char) * 18);
-	File.write(reinterpret_cast<char *>(data), sizeof(char) * imageSize);
-	File.close();
+	for (std::int32_t I = 0; I < height; ++I)
+	{
+		for (std::int32_t J = 0; J < width; ++J)
+		{
+			std::size_t pos = I * (width * channels) + channels * J;
+
+			for (unsigned int channel; channel < channels; channel++) {
+				PngBuffer[pos + channel] = data[pos + channel];
+			}
+		}
+	}
+
+	// Encode to 8bit
+	std::vector<std::uint8_t> ImageBuffer;
+	lodepng::encode(ImageBuffer, PngBuffer, width, height);
+	lodepng::save_file(ImageBuffer, filename);
 
 	delete[] data;
 	data = NULL;

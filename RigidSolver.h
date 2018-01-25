@@ -25,8 +25,10 @@ public:
 	static VertexArray vaPlane;
 private:
 
-	virtual bool initSolverFBO(void);
-	virtual bool initRigidDataStructures(void);
+	virtual bool initSolverFBOs(void);
+	virtual bool initRigidFBO(void);
+	virtual bool initParticleFBO(void);
+	virtual bool initGridFBO(void);
 
 	virtual bool resetSimulation(void);
 	virtual bool stopSimulation(void);
@@ -35,6 +37,7 @@ private:
 	virtual bool reloadShaders(void);
 
 	virtual bool updateGrid(void);
+	virtual bool updateRigidBodies(void);
 	virtual bool updateParticles(void);
 	
 	virtual bool loadModel(float * vertices, int * indices, int num);
@@ -51,7 +54,7 @@ private:
 	virtual bool checkFBOStatus(void);
 	virtual int getRigidBodyTextureSizeLength(void);
 	virtual int getParticleTextureSideLength(void);
-	virtual bool saveFramebufferTGA(char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type);
+	virtual bool saveFramebufferPNG(char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type);
 
 	void fileChanged(FileEnumVar<RigidSolver> &var);
 	void particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var);
@@ -97,7 +100,9 @@ private:
 	VertexArray vaParticleVertice;
 
 	// FBOs
-	GLuint solverFBO;
+	GLuint rigidBodyFBO;
+	GLuint particlesFBO;
+	GLuint gridFBO;
 
 	// Grid
 	SolverGrid grid;
