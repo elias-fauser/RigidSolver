@@ -1,3 +1,5 @@
+#pragma once
+
 #include "RenderPlugin.h"
 #include "GL/gl3w.h"
 #include "GLShader.h"
@@ -18,6 +20,9 @@ public:
 	virtual bool Resize(int width, int height);
 	virtual bool Keyboard(unsigned char key, int x, int y);
 
+	// Public static vertex arrays
+	static VertexArray vaQuad;
+	static VertexArray vaPlane;
 private:
 
 	virtual bool initSolverFBO(void);
@@ -31,7 +36,6 @@ private:
 
 	virtual bool updateGrid(void);
 	virtual bool updateParticles(void);
-	virtual bool createParticles(void);
 	
 	virtual bool loadModel(float * vertices, int * indices, int num);
 	virtual bool loadModel(float * vertices, int * indices, float * texCoords, int num);
@@ -47,6 +51,7 @@ private:
 	virtual bool checkFBOStatus(void);
 	virtual int getRigidBodyTextureSizeLength(void);
 	virtual int getParticleTextureSideLength(void);
+	virtual bool saveFramebufferTGA(char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type);
 
 	void fileChanged(FileEnumVar<RigidSolver> &var);
 	void particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var);
@@ -67,6 +72,8 @@ private:
 	std::string particleValuesVertShaderName, particleValuesFragShaderName, particleValuesGeomShaderName;
 	std::string beautyVertShaderName, beautyFragShaderName;
 	std::string momentaVertShaderName, momentaFragShaderName;
+	std::string collisionVertShaderName, collisionFragShaderName;
+	std::string collisionGridVertShaderName, collisionGridFragShaderName;
 
 	// Transformations
 	float aspectRatio = 1.f;
@@ -82,12 +89,12 @@ private:
 	// --------------------------------------------------  
 
 	// Shaders
-	GLShader shaderBeauty, shaderSolver, shaderParticleValues, shaderMomentaCalculation;
+	GLShader shaderBeauty, shaderSolver, shaderParticleValues, shaderMomentaCalculation, shaderCollisionGrid, shaderCollision;
 
 	// Vertex Arrays
 	SolverModel vaModel;
 	VertexArray vaParticles;
-	VertexArray vaPlane;
+	VertexArray vaParticleVertice;
 
 	// FBOs
 	GLuint solverFBO;
@@ -104,12 +111,11 @@ private:
 	GLuint rigidBodyLinearMomentum1, rigidBodyLinearMomentum2;
 	GLuint rigidBodyAngularMomentum1, rigidBodyAngularMomentum2;
 
-	GLuint particleRelativePositionsTex;
+	GLuint particlePositionsTex;
 	GLuint particleVelocityTex;
-	GLuint particleCoMTex; // Center of Mass
+	GLuint particleForcesTex;
+
 
 };
 
-extern "C" OGL4COREPLUGIN_API RenderPlugin* OGL4COREPLUGIN_CALL CreateInstance(COGL4CoreAPI *Api) {
-    return new RigidSolver(Api);
-}
+extern "C" OGL4COREPLUGIN_API RenderPlugin* OGL4COREPLUGIN_CALL CreateInstance(COGL4CoreAPI *Api);
