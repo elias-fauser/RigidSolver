@@ -84,15 +84,15 @@ void SolverGrid::setVoxelLength(float size)
 	voxelLength = size;
 }
 
-glm::vec3 SolverGrid::getTopLeftFront(void) const
+glm::vec3 SolverGrid::getTopRightFront(void) const
 {
-	glm::vec4 translated = this->modelMX * glm::vec4(topLeftFront, 1.0f);
+	glm::vec4 translated = this->modelMX * glm::vec4(topRightFront, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
 }
 
-glm::vec3 SolverGrid::getBtmRightBack(void) const
+glm::vec3 SolverGrid::getBtmLeftBack(void) const
 {
-	glm::vec4 translated = this->modelMX * glm::vec4(btmRightBack, 1.0f);
+	glm::vec4 translated = this->modelMX * glm::vec4(btmLeftBack, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
 }
 /**
@@ -101,7 +101,7 @@ glm::vec3 SolverGrid::getBtmRightBack(void) const
 */
 glm::vec3 SolverGrid::getGridSize(void) const
 {
-	return glm::abs(getBtmRightBack() - getTopLeftFront());
+	return glm::abs(getBtmLeftBack() - getTopRightFront());
 }
 
 /**

@@ -19,8 +19,8 @@ public:
 	float getVoxelLength(void) const;
 	void  setVoxelLength(float size);
 
-	glm::vec3 getTopLeftFront(void) const;
-	glm::vec3 getBtmRightBack(void) const;
+	glm::vec3 getTopRightFront(void) const;
+	glm::vec3 getBtmLeftBack(void) const;
 	glm::vec3 getGridSize(void) const;
 	glm::ivec3 getGridResolution(void) const;
 
@@ -32,7 +32,7 @@ private:
 	glm::mat4 modelMX = glm::mat4(1.f);
 	glm::vec3 emitterPosition = glm::vec3(0.f, .5f, 0.f);
 	glm::vec3 emitterVelocity = glm::vec3(0.f, -1.f, 0.f);
-	glm::vec3 topLeftFront = glm::vec3(-.5f, .5f, -.5f), btmRightBack = glm::vec3(.5f, -.5f, .5f);
+	glm::vec3 topRightFront = glm::vec3(.5f, .5f, .5f), btmLeftBack = glm::vec3(-.5f, -.5f, -.5f);
 
 	float voxelLength = .05f;
 	float sizeX, sizeY, sizeZ;
