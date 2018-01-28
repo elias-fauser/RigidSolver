@@ -7,6 +7,9 @@
 #include "VertexArray.h"
 #include "SolverModel.h"
 
+// Global variables
+const bool DEBUGGING = true;
+
 // This class is exported from the RigidSolver.dll
 class OGL4COREPLUGIN_API RigidSolver : public RenderPlugin {
 public:
@@ -20,9 +23,14 @@ public:
 	virtual bool Resize(int width, int height);
 	virtual bool Keyboard(unsigned char key, int x, int y);
 
+	// Helper for this and other classes
+	static bool checkFBOStatus(std::string fboName);
+	static bool saveFramebufferPNG(const char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type);
+
 	// Public static vertex arrays
 	static VertexArray vaQuad;
 	static VertexArray vaPlane;
+
 private:
 
 	virtual bool initSolverFBOs(void);
@@ -51,14 +59,12 @@ private:
 	virtual bool beautyPass(void);
 
 	virtual void createFBOTexture(GLuint &outID, const GLenum internalFormat, const GLenum format, const GLenum type, GLint filter, int width, int height, void * data);
-	virtual bool checkFBOStatus(void);
 	virtual int getRigidBodyTextureSizeLength(void);
 	virtual int getParticleTextureSideLength(void);
-	virtual bool saveFramebufferPNG(char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type);
 
 	void fileChanged(FileEnumVar<RigidSolver> &var);
 	void particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var);
-	
+
 	// API Vars
 	FileEnumVar<RigidSolver>  modelFiles;
 	APIVar<RigidSolver, IntVarPolicy> fovY;

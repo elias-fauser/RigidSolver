@@ -206,8 +206,7 @@ bool RigidSolver::Activate(void) {
 	//  Init
 	// --------------------------------------------------  
 
-	bool status = initSolverFBOs();
-	// initRigidDataStructures();
+	initSolverFBOs();
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClearDepth(1.0);
@@ -225,7 +224,7 @@ bool RigidSolver::Activate(void) {
 	glGetIntegerv(GL_MAX_GEOMETRY_OUTPUT_VERTICES, &maxGeomOuputVerts);
 	fprintf(stderr, "Maximum number of geometry output vertices: %d\n", maxGeomOuputVerts);
 
-    return status;
+    return true;
 }
 
 bool RigidSolver::Deactivate(void) {
@@ -339,8 +338,8 @@ bool RigidSolver::loadModel(float * vertices, int * indices, int num) {
 	glm::vec3 com = glm::vec3(0.0f);
 
 	// Inertia Tensor
-	float Ixx, Iyy, Izz;
-	float Ixy, Ixz, Iyz;
+	float Ixx = 0.f, Iyy = 0.f, Izz = 0.f;
+	float Ixy = 0.f, Ixz = 0.f, Iyz = 0.f;
 	glm::mat3 intertiaTensor;
 
 	// Bounding Box
@@ -656,7 +655,7 @@ bool RigidSolver::solverPass(void)
 	shaderMomentaCalculation.Bind();
 
 	glUniform1f(shaderMomentaCalculation.GetUniformLocation("mass"), modelMass);
-	glUniform1i(shaderCollision.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
 
 	// Output textures
 	GLuint attachments[] = { RigidBodyPositionAttachment1, RigidBodyQuaternionAttachment1 };
@@ -707,19 +706,19 @@ bool RigidSolver::beautyPass(void) {
 
 	// Shader Variables
 	// View transformation as well as model MX of solver system
-	glUniform1i(shaderCollision.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+	glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
 
 	glUniformMatrix4fv(shaderBeauty.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMX));
 	glUniformMatrix4fv(shaderBeauty.GetUniformLocation("viewMX"), 1, GL_FALSE, glm::value_ptr(viewMX));
-
 	glUniformMatrix4fv(shaderBeauty.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(grid.getModelMatrix()));
 	glUniformMatrix4fv(shaderBeauty.GetUniformLocation("invModelViewMX"), 1, GL_FALSE, glm::value_ptr(glm::inverse(viewMX * grid.getModelMatrix())));
 
-	glUniform3fv(shaderBeauty.GetUniformLocation("lightDirection"), 1, glm::value_ptr(glm::vec3(.2f, -1.f, -.2f)));
+	glUniform3fv(shaderBeauty.GetUniformLocation("lightDirection"), 1, glm::value_ptr(glm::vec3(0.f, -1.f, 0.f)));
 
-	glUniform3fv(shaderBeauty.GetUniformLocation("ambientColor"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
-	glUniform3fv(shaderBeauty.GetUniformLocation("diffuseColor"), 1, glm::value_ptr(glm::vec3(.8f, .8f, .8f)));
-	glUniform3fv(shaderBeauty.GetUniformLocation("specularColor"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
+	glUniform3fv(shaderBeauty.GetUniformLocation("ambient"), 1, glm::value_ptr(glm::vec3(0.4f, .4f, .4f)));
+	glUniform3fv(shaderBeauty.GetUniformLocation("diffuse"), 1, glm::value_ptr(glm::vec3(.8f, .8f, .8f)));
+	glUniform3fv(shaderBeauty.GetUniformLocation("specular"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
+
 	glUniform1f(shaderBeauty.GetUniformLocation("k_amb"), 0.2f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_diff"), 0.8f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_spec"), 1.0f);
@@ -749,9 +748,8 @@ bool RigidSolver::beautyPass(void) {
 		// Change mode
 		glUniform1i(shaderBeauty.GetUniformLocation("positionByTexture"), 1);
 
-		vaModel.Bind();
 		// Instanced drawing of the rigid bodies
-		// glDrawElements(GL_TRIANGLES, vaModel.GetNumVertices() * 3, GL_UNSIGNED_INT, 0);
+		vaModel.Bind();
 		glDrawElementsInstanced(GL_TRIANGLES, vaModel.GetNumVertices() * 3, GL_UNSIGNED_INT, 0, spawnedObjects);
 		vaModel.Release();
 	}
@@ -779,15 +777,12 @@ bool RigidSolver::beautyPass(void) {
 */
 bool RigidSolver::initSolverFBOs() {
 
+	bool result = true;
+
 	// Init the FBOs
-	initRigidFBO();
-	initParticleFBO();
-	initGridFBO();
-
-	// Finally Check FBO status
-	bool result = checkFBOStatus();
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	result = result && initRigidFBO();
+	result = result && initParticleFBO();
+	result = result && initGridFBO();
 
 	return result;
 
@@ -801,9 +796,12 @@ bool RigidSolver::initRigidFBO(void)
 
 	updateRigidBodies();
 
+	// Finally Check FBO status
+	bool result = checkFBOStatus(std::string("RigidFBO"));
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	return true;
+	return result;
 }
 
 bool RigidSolver::initParticleFBO(void)
@@ -813,9 +811,12 @@ bool RigidSolver::initParticleFBO(void)
 
 	updateParticles();
 
+	// Finally Check FBO status
+	bool result = checkFBOStatus(std::string("ParticleFBO"));
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	return true;
+ 	return result;
 }
 
 bool RigidSolver::initGridFBO(void)
@@ -825,9 +826,12 @@ bool RigidSolver::initGridFBO(void)
 
 	updateGrid();
 
+	// Finally Check FBO status
+	bool result = checkFBOStatus(std::string("GridFBO"));
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-	return true;
+	return result;
 }
 
 bool RigidSolver::resetSimulation(void)
@@ -873,11 +877,13 @@ bool RigidSolver::updateParticles() {
 	// Texture must be numRegidBodies * numParticlesPerRigidBody long
 	int particleTexEdgeLength = getParticleTextureSideLength();
 
+	// Catch uninitialized number of bodies
+	if (particleTexEdgeLength <= 0) return false;
+
 	createFBOTexture(particlePositionsTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
 	createFBOTexture(particleVelocityTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
 	createFBOTexture(particleForcesTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
 
-	// TODO: Max number of attachments reached
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticlePositionAttachment, GL_TEXTURE_2D, particlePositionsTex, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleVelocityAttachment, GL_TEXTURE_2D, particleVelocityTex, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleForceAttachment, GL_TEXTURE_2D, particleForcesTex, 0);
@@ -1067,6 +1073,10 @@ void RigidSolver::createFBOTexture(GLuint &outID, const GLenum internalFormat, c
 	glGenTextures(1, &outID);
 	glBindTexture(GL_TEXTURE_2D, outID);
 
+	// Check
+	if (width > GL_MAX_FRAMEBUFFER_WIDTH) std::cout << "Unable to create texture: Width exceeds GL_MAX_FRAMEBUFFER_WIDTH\n";
+	if (height > GL_MAX_FRAMEBUFFER_HEIGHT) std::cout << "Unable to create texture: Height exceeds GL_MAX_FRAMEBUFFER_HEIGHT\n";
+
 	// Set the wrap and interpolation parameter
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1079,34 +1089,34 @@ void RigidSolver::createFBOTexture(GLuint &outID, const GLenum internalFormat, c
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-bool RigidSolver::checkFBOStatus() {
+bool RigidSolver::checkFBOStatus(std::string fboName) {
 	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	bool r = false;
 
 	switch (status) {
 	case GL_FRAMEBUFFER_UNDEFINED: {
-		fprintf(stderr, "FBO: undefined.\n");
+		fprintf(stderr, "FBO '%s': undefined.\n", fboName.c_str());
 		break;
 	}
 	case GL_FRAMEBUFFER_COMPLETE: {
-		fprintf(stderr, "FBO: complete.\n");
+		fprintf(stderr, "FBO '%s': complete.\n", fboName.c_str());
 		r = true;
 		break;
 	}
 	case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT: {
-		fprintf(stderr, "FBO: incomplete attachment.\n");
+		fprintf(stderr, "FBO '%s': incomplete attachment.\n", fboName.c_str());
 		break;
 	}
 	case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT: {
-		fprintf(stderr, "FBO: no buffers are attached to the FBO.\n");
+		fprintf(stderr, "FBO '%s': no buffers are attached to the FBO.\n", fboName.c_str());
 		break;
 	}
 	case GL_FRAMEBUFFER_UNSUPPORTED: {
-		fprintf(stderr, "FBO: combination of internal buffer formats is not supported.\n");
+		fprintf(stderr, "FBO '%s': combination of internal buffer formats is not supported.\n", fboName.c_str());
 		break;
 	}
 	case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: {
-		fprintf(stderr, "FBO: number of samples or the value for ... does not match.\n");
+		fprintf(stderr, "FBO '%s': number of samples or the value for ... does not match.\n", fboName.c_str());
 		break;
 	}
 	}
@@ -1116,7 +1126,7 @@ bool RigidSolver::checkFBOStatus() {
 
 int RigidSolver::getRigidBodyTextureSizeLength(void)
 {
-	return floor(sqrt(MAX_NUMBER_OF_RIGID_BODIES));
+	return int(std::floor(std::sqrt(MAX_NUMBER_OF_RIGID_BODIES)));
 }
 
 int RigidSolver::getParticleTextureSideLength(void)
@@ -1124,12 +1134,13 @@ int RigidSolver::getParticleTextureSideLength(void)
 	return std::ceil(std::sqrt(getRigidBodyTextureSizeLength() * std::max(vaModel.getNumParticles(), 0)));
 }
 
-bool RigidSolver::saveFramebufferPNG(char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type)
+bool RigidSolver::saveFramebufferPNG(const char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type)
 {
 	// Function taken from: http://www.flashbang.se/archives/155
 
 	int channels;
-	if (format == GL_RED || format == GL_BLUE || format == GL_GREEN || format == GL_ALPHA) channels = 1;
+	if (format == GL_RED || format == GL_BLUE || format == GL_GREEN || format == GL_ALPHA 
+		|| format == GL_DEPTH_COMPONENT || format == GL_DEPTH_COMPONENT32F || format == GL_DEPTH_COMPONENT32) channels = 1;
 	else if (format == GL_RGB || format == GL_BGR) channels = 3;
 	else if (format == GL_RGBA) channels = 4;
 	else return false;
@@ -1139,7 +1150,8 @@ bool RigidSolver::saveFramebufferPNG(char filename[160], GLuint texture, int wid
 	unsigned char *data = new unsigned char[imageSize];
 
 	glBindTexture(GL_TEXTURE_2D, texture);
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_BGR, type, data);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glGetTexImage(GL_TEXTURE_2D, 0, format, type, data);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Save to PNG
@@ -1151,19 +1163,49 @@ bool RigidSolver::saveFramebufferPNG(char filename[160], GLuint texture, int wid
 		{
 			std::size_t pos = I * (width * channels) + channels * J;
 
-			for (unsigned int channel; channel < channels; channel++) {
+			for (int channel = 0u; channel < channels; channel++) {
 				PngBuffer[pos + channel] = data[pos + channel];
 			}
 		}
 	}
 
+	// Change the settings
+	lodepng::State state;
+
+	// Output
+	state.info_png.color.bitdepth = 8;
+
+	// TODO: Does depth always assume to be 32bit
+	if (format == GL_DEPTH_COMPONENT || format == GL_DEPTH_COMPONENT32F || format == GL_DEPTH_COMPONENT32) {
+		state.info_png.color.colortype = LCT_GREY;
+		state.info_png.color.bitdepth = 16;
+	}
+	else if (channels == 3) state.info_png.color.colortype = LCT_RGB;
+	else state.info_png.color.colortype = LCT_RGBA;
+
+	// Input
+	state.info_raw.bitdepth = 8;
+	if (format == GL_DEPTH_COMPONENT || format == GL_DEPTH_COMPONENT32F || format == GL_DEPTH_COMPONENT32) {
+		state.info_raw.colortype = LCT_GREY;
+		state.info_raw.bitdepth = 32;
+	}
+	else if (channels == 3) state.info_raw.colortype = LCT_RGB;
+	else state.info_raw.colortype = LCT_RGBA;
+
+	// Switch of auto encoding
+	state.encoder.auto_convert = 0;
+
 	// Encode to 8bit
-	std::vector<std::uint8_t> ImageBuffer;
-	lodepng::encode(ImageBuffer, PngBuffer, width, height);
-	lodepng::save_file(ImageBuffer, filename);
+	std::vector<unsigned char> image;
+	unsigned error = lodepng::encode(image, PngBuffer, width, height, state);
+	if (!error) lodepng::save_file(image, filename);
+	else std::cout << "Error " << error << " while encoding PNG image!\n";
 
-	delete[] data;
-	data = NULL;
+	if (data) {
+		delete[] data;
+		data = NULL;
+	}
 
-	return true;
+	if (error) return false;
+	else return true;
 }

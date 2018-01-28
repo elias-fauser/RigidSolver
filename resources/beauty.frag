@@ -42,11 +42,12 @@ vec3 blinnPhong(vec3 n, vec3 l, vec3 v) {
 // --------------------------------------------------
 void main() {
 	
-	vec4 cameraPosition = invModelViewMX * vec4(.0f, .0f, .0f, 1.0f); // Camera at origin
+	vec4 cameraPosition = invModelViewMX[3];
 	cameraPosition /= cameraPosition.w;
 	
     vec3 view = normalize(position - cameraPosition.xyz);
+	view = vec3(1, 1, 0);
 
-	gl_FragColor = vec4(normal, 1.0);
-    // gl_FragColor = vec4(blinnPhong(normalize(normal), normalize(lightDirection), view), 1.0);
+	// gl_FragColor = vec4(texCoords, 1.0, 1.0);
+    gl_FragColor = vec4(blinnPhong(normalize(normal), normalize(lightDirection), view), 1.0);
 }
