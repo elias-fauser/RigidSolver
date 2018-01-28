@@ -16,12 +16,16 @@ public:
 	void setInertiaTensor(glm::mat3 tensor);
 	glm::mat3 getInertiaTensor(void);
 
+	bool reloadShaders(void);
+
 private:
 
-	float * particlePositions;
-	int numParticles = -1;
+	std::string currentDirectory;
+	unsigned int linearIndexFromCoordinate(float x, float y, float z, int max_x, int max_y, int offset);
+	float * particlePositions = NULL;
+	int numParticles = 0;
 	glm::mat3 inertiaTensor;
-	GLShader peelingShader;
+	GLShader peelingShader, peelingEvaluationShader;
 
 };
 
