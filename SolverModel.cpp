@@ -41,11 +41,14 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	GLuint textures[NUM_DEPTH_PEEL_PASSES];
 	glm::ivec3 gridResolution = grid->getGridResolution();
 	glm::vec3 gridSize = grid->getGridSize();
+	glm::vec3 modelSize = getModelSize();
 	float voxelLength = grid->getVoxelLength();
-	glm::vec3 btmLeftBackCorner = grid->getBtmLeftBack();
-
-	float zNear = 0.f;
-	float zFar = gridSize.x * 2.f;
+	glm::vec3 btmLeftFrontCorner = grid->getBtmLeftFront();
+	glm::vec3 topRightBackCorner = grid->getTopRightBack();
+	
+	float bias = 0.001f;
+	float zNear = bias;
+	float zFar = gridSize.z * 2.f;
 
 	GLuint depthPeelingFBO;
 	glGenFramebuffers(1, &depthPeelingFBO);
@@ -66,7 +69,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gridResolution.y, gridResolution.z, 0, GL_RGBA, GL_FLOAT, NULL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gridResolution.x, gridResolution.y, 0, GL_RGBA, GL_FLOAT, NULL);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -85,7 +88,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 		// Init empty image (to currently bound FBO)
 		// TODO: Check if resolution of y and z is really the right one
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, gridResolution.y , gridResolution.z, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+		// glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, gridResolution.x, gridResolution.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+		// TODO: Switch back to 32F
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, gridResolution.x, gridResolution.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
@@ -93,16 +98,24 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	// --------------------------------------------------
 	//  Rendering the depth peels
 	// -------------------------------------------------- 
-	// Setup orthographic view scaled to grid size, looking into positive x direction (y up)
-	glm::mat4 viewMatrix = glm::lookAt(glm::vec3(btmLeftBackCorner.x, 1.f, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
-	glm::mat4 projMatrix = glm::ortho(btmLeftBackCorner.z, gridSize.y, btmLeftBackCorner.y, gridSize.z, zNear, zFar);
-	
+	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
+	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
+	glm::mat4 viewMatrix = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	glm::mat4 projMatrix = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
+
+	// Scale the model to fit the grid (so we use the full resolution)
+	glm::mat4 modelMatrix = grid->getModelMatrix();
+	float scaling = std::max(std::max(modelSize.x / gridSize.x, modelSize.x / gridSize.x), modelSize.x / gridSize.x);
+	modelMatrix = glm::scale(modelMatrix, scaling, scaling, scaling);
+
 	// Render the depth passes
 	peelingShader.Bind();
 
 	glUniformMatrix4fv(peelingShader.GetUniformLocation("projMX"), 0, false, glm::value_ptr(projMatrix));
 	glUniformMatrix4fv(peelingShader.GetUniformLocation("viewMX"), 0, false, glm::value_ptr(viewMatrix));
-	glUniformMatrix4fv(peelingShader.GetUniformLocation("modelMX"), 0, false, glm::value_ptr(grid->getModelMatrix()));
+	glUniformMatrix4fv(peelingShader.GetUniformLocation("modelMX"), 0, false, glm::value_ptr(modelMatrix));
+
+	glDepthMask(true);
 
 	for (int i = 0; i < NUM_DEPTH_PEEL_PASSES; i++) {
 
@@ -113,6 +126,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 		if (i == 0) {
 			glDisable(GL_DEPTH_TEST);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[i], 0);
+
+			// Clear the write depth texture once before rendering
+			glClear(GL_DEPTH_BUFFER_BIT);
 		}
 		else {
 			glEnable(GL_DEPTH_TEST);
@@ -125,8 +141,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 			// Depth unit 1 - The one that is written to
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[i], 0);
 
-			// glDepthMask(true);
-			glDepthFunc(GL_LESS);
+			// Clear the write depth texture once before rendering
 			glClear(GL_DEPTH_BUFFER_BIT);
 
 		}
@@ -137,7 +152,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 		if (DEBUGGING) {
 			std::string fileName = currentDirectory + std::string("depthPeelingPass_") + std::to_string(i) + std::string(".png");
-			RigidSolver::saveFramebufferPNG(fileName.c_str(), textures[i], gridResolution.y, gridResolution.z, GL_DEPTH_COMPONENT, GL_FLOAT );
+			RigidSolver::saveDepthTexturePNG(fileName, textures[i], gridResolution.x, gridResolution.y);
 		}
 
 	}
@@ -165,17 +180,26 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	// --------------------------------------------------
 	//  Rendering the final evaluation of the particle positions
 	// -------------------------------------------------- 
+	
+	GLuint depthPeelingEvalFBO;
+	glGenFramebuffers(1, &depthPeelingEvalFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, depthPeelingEvalFBO);
 
 	// Viewporting to get right grid coordinates
-	glViewport(0, 0, gridResolution.y, gridResolution.z);
+	glViewport(0, 0, gridResolution.x, gridResolution.y);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glm::mat4 orthoMX = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f);
 
 	peelingEvaluationShader.Bind();
 
 	// Add the uniforms
+	glUniformMatrix4fv(peelingEvaluationShader.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(orthoMX));
 	glUniform1i(peelingEvaluationShader.GetUniformLocation("resolutionY"), gridResolution.y);
 	glUniform1i(peelingEvaluationShader.GetUniformLocation("resolutionZ"), gridResolution.z);
 	glUniform1f(peelingEvaluationShader.GetUniformLocation("zNear"), zNear);
 	glUniform1f(peelingEvaluationShader.GetUniformLocation("zFar"), zFar);
+
 	// Add the lookup depth textures
 	// TODO: Change from hard coded to dynamic
 	glActiveTexture(GL_TEXTURE0);
@@ -201,11 +225,22 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 		// Add a uniform for the current depth
 		// TODO: Check if this is really right. I need an z buffer value in between [-1, 1] here I think
-		glm::vec4 zPosition = viewMatrix * projMatrix * glm::vec4(grid->getBtmLeftBack().x + z * voxelLength, 0.f, 0.f, 1.f);
-		glUniform1i(peelingEvaluationShader.GetUniformLocation("z"), zPosition.x);
+		float a = zFar / (zNear - zFar);
+		float b = (zFar * zNear) / (zNear - zFar);
+
+		// Determining depth of z-layer of grid - adding half voxelLength to be in the middle of the voxel
+		float depth = grid->getBtmLeftFront().z + z * voxelLength + voxelLength / 2.0f;
+
+		// Calulating view and proj transformations to get viewspace z
+		glm::vec4 viewSpace = projMatrix * viewMatrix * glm::vec4(0.f, 0.f, depth, 1.f);
+		float zDepth = (a * viewSpace.z + b) / -viewSpace.z;
+		// Calculate to float
+
+		glUniform1i(peelingEvaluationShader.GetUniformLocation("z"), zDepth);
 
 		// Setup a z slice to render to
 		glFramebufferTexture3D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_3D, gridTex, 0, z);
+
 		GLuint attachments[] = { GL_COLOR_ATTACHMENT0 };
 		glDrawBuffers(1, attachments);
 
@@ -234,9 +269,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	glBindTexture(GL_TEXTURE_3D, 0);
 
 	// Get the voxels which are particles and determine their positions
-	for (unsigned int x = 0u; x > gridResolution.x; x++) {
-		for (unsigned int y = 0u; y > gridResolution.y; y++) {
-			for (unsigned int z = 0u; z > gridResolution.z; z++) {
+	for (unsigned int x = 0u; x < gridResolution.x; x++) {
+		for (unsigned int y = 0u; y < gridResolution.y; y++) {
+			for (unsigned int z = 0u; z < gridResolution.z; z++) {
 				int idx = linearIndexFromCoordinate(x, y, z, gridResolution.x, gridResolution.y, 3);
 
 				float r = gridData[idx];
@@ -246,9 +281,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 				if (r > .5f && g > .5f && b > .5f) {
 					// TODO: Is this the right corner?
 					// 0.5 offset for voxel center offset
-					particles.push_back(btmLeftBackCorner.x + x * voxelLength + 0.5);
-					particles.push_back(btmLeftBackCorner.y + y * voxelLength + 0.5);
-					particles.push_back(btmLeftBackCorner.z + z * voxelLength + 0.5);
+					particles.push_back(btmLeftFrontCorner.x + x * voxelLength + 0.5 * voxelLength);
+					particles.push_back(btmLeftFrontCorner.y + y * voxelLength + 0.5 * voxelLength);
+					particles.push_back(btmLeftFrontCorner.z + z * voxelLength + 0.5 * voxelLength);
 				}
 			}
 		}
@@ -280,6 +315,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	// Delete FBO and unbind
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glDeleteFramebuffers(1, &depthPeelingFBO);
+	glDeleteFramebuffers(1, &depthPeelingEvalFBO);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -317,6 +353,27 @@ glm::mat3 SolverModel::getInertiaTensor(void)
 	return inertiaTensor;
 }
 
+glm::vec3 SolverModel::getTopRightBack(void) const
+{
+	return topRightBack;
+}
+
+glm::vec3 SolverModel::getBtmLeftFront(void) const
+{
+	return btmLeftFront;
+}
+
+glm::vec3 SolverModel::getModelSize(void) const
+{
+	return glm::abs(getBtmLeftFront() - getTopRightBack());
+}
+
+void SolverModel::setBoundingBox(float xl, float xr, float yb, float yt, float zn, float zf)
+{
+	btmLeftFront = glm::vec3(xl, yb, zn);
+	topRightBack = glm::vec3(xr, yt, zf);
+}
+
 bool SolverModel::reloadShaders(void)
 {
 	// Create the shader
@@ -334,8 +391,8 @@ bool SolverModel::reloadShaders(void)
 
 unsigned int SolverModel::linearIndexFromCoordinate(float x, float y, float z, int max_x, int max_y, int offset)
 {
-	int b = max_x + 1;
-	int c = (max_x + 1) * (max_y + 1);
+	int b = max_x;
+	int c = max_x * max_y;
 
 	return x * offset + b * offset * y + c * offset * z;
 }

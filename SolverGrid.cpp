@@ -31,12 +31,8 @@ const int EMITTER_INDICES[] = {
 	0, 3
 };
 
-SolverGrid::SolverGrid(int xVoxels, int yVoxels, int zVoxels)
+SolverGrid::SolverGrid()
 {
-	sizeX = xVoxels;
-	sizeY = yVoxels;
-	sizeZ = zVoxels;
-
 	// Setup drawable grid
 	vaBox.Create(sizeof(BOX_VERTICES) / (sizeof(float) * 4));
 	vaBox.SetArrayBuffer(0, GL_FLOAT, 4, BOX_VERTICES);
@@ -84,15 +80,15 @@ void SolverGrid::setVoxelLength(float size)
 	voxelLength = size;
 }
 
-glm::vec3 SolverGrid::getTopRightFront(void) const
+glm::vec3 SolverGrid::getTopRightBack(void) const
 {
-	glm::vec4 translated = this->modelMX * glm::vec4(topRightFront, 1.0f);
+	glm::vec4 translated = this->modelMX * glm::vec4(topRightBack, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
 }
 
-glm::vec3 SolverGrid::getBtmLeftBack(void) const
+glm::vec3 SolverGrid::getBtmLeftFront(void) const
 {
-	glm::vec4 translated = this->modelMX * glm::vec4(btmLeftBack, 1.0f);
+	glm::vec4 translated = this->modelMX * glm::vec4(btmLeftFront, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
 }
 /**
@@ -101,7 +97,7 @@ glm::vec3 SolverGrid::getBtmLeftBack(void) const
 */
 glm::vec3 SolverGrid::getGridSize(void) const
 {
-	return glm::abs(getBtmLeftBack() - getTopRightFront());
+	return glm::abs(getBtmLeftFront() - getTopRightBack());
 }
 
 /**
