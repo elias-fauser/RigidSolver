@@ -2,8 +2,6 @@
 
 #define M_PI  3.14159265
 
-in vec3 texCoord;
-
 uniform sampler2D lastDepth;
 
 // --------------------------------------------------
@@ -11,11 +9,11 @@ uniform sampler2D lastDepth;
 // --------------------------------------------------
 void main() {
 	
-	float depth = texture(lastDepth, texCoord.xy).x;
-	if (texCoord.z < depth){
-		gl_FragDepth = max(depth, texCoord.z);
-	}
-	else {
-		gl_FragDepth = 0.0;
+	// Bit-exact comparison between FP32 z-buffer and fragment depth
+	// http://www.java2s.com/Open-Source/Java_Free_Code/Graph_3D/Download_modern_jogl_examples_Free_Java_Code.htm
+	
+	float frontDepth = texelFetch(lastDepth, ivec2(gl_FragCoord.xy), 0).r;
+	if (gl_FragCoord.z <= frontDepth) {
+		discard;
 	}
 }

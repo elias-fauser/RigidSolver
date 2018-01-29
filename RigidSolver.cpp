@@ -399,6 +399,10 @@ bool RigidSolver::loadModel(float * vertices, int * indices, int num) {
 		 Ixx, -Ixy, -Ixz,
 		-Ixy,  Iyy, -Iyz,
 		-Ixz, -Iyz,  Izz));
+	
+	minimum *= scale;
+	maximum *= scale;
+	vaModel.setBoundingBox(minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z);
 
 	// Create the particles
 	vaModel.createParticles(&grid);
@@ -487,6 +491,8 @@ bool RigidSolver::particleValuePass(void)
 	}
 
 	int sideLength = getParticleTextureSideLength();
+	if (sideLength == 0) return false;
+
 	projMX = glm::ortho(0, sideLength, 0, sideLength);
 
 	// Clearing
@@ -685,6 +691,11 @@ bool RigidSolver::beautyPass(void) {
 	
 	// Set up the proj Matrices
 	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
+
+	// ------------------- TEST -----------
+	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
+	glm::vec3 gridSize = grid.getGridSize();
+	float voxelLength = grid.getVoxelLength();
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1134,72 +1145,96 @@ int RigidSolver::getParticleTextureSideLength(void)
 	return std::ceil(std::sqrt(getRigidBodyTextureSizeLength() * std::max(vaModel.getNumParticles(), 0)));
 }
 
-bool RigidSolver::saveFramebufferPNG(const char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type)
+bool RigidSolver::saveFramebufferPNG(const std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type)
 {
-	// Function taken from: http://www.flashbang.se/archives/155
-
 	int channels;
-	if (format == GL_RED || format == GL_BLUE || format == GL_GREEN || format == GL_ALPHA 
-		|| format == GL_DEPTH_COMPONENT || format == GL_DEPTH_COMPONENT32F || format == GL_DEPTH_COMPONENT32) channels = 1;
+	if (format == GL_RED || format == GL_BLUE || format == GL_GREEN || format == GL_ALPHA) channels = 1;
 	else if (format == GL_RGB || format == GL_BGR) channels = 3;
-	else if (format == GL_RGBA) channels = 4;
+	else if (format == GL_RGBA || format == GL_DEPTH_COMPONENT) channels = 4;
 	else return false;
 
 	// get the image data
 	long imageSize = width * height * channels;
+
 	unsigned char *data = new unsigned char[imageSize];
 
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	// glReadPixels(0, 0, width, height, format, type, data);
 	glGetTexImage(GL_TEXTURE_2D, 0, format, type, data);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// Save to PNG
-	std::vector<std::uint8_t> PngBuffer(imageSize);
-
-	for (std::int32_t I = 0; I < height; ++I)
-	{
-		for (std::int32_t J = 0; J < width; ++J)
-		{
-			std::size_t pos = I * (width * channels) + channels * J;
-
-			for (int channel = 0u; channel < channels; channel++) {
-				PngBuffer[pos + channel] = data[pos + channel];
-			}
-		}
-	}
+	std::vector<unsigned char> PngBuffer(imageSize);
+	PngBuffer.assign(data, data + imageSize);
 
 	// Change the settings
 	lodepng::State state;
 
-	// Output
+	// Input Settings
+	state.info_raw.bitdepth = 8;
+	state.info_raw.colortype = LCT_RGBA;
+
+	if (format == GL_RED || format == GL_BLUE || format == GL_GREEN 
+		|| format == GL_ALPHA) state.info_raw.colortype = LCT_GREY;
+	else if (format == GL_RGB || format == GL_BGR) state.info_raw.colortype = LCT_RGB;
+
+	// Output settings (Always 8 bit)
+	state.info_png.color.colortype = LCT_RGBA;
 	state.info_png.color.bitdepth = 8;
 
 	// TODO: Does depth always assume to be 32bit
-	if (format == GL_DEPTH_COMPONENT || format == GL_DEPTH_COMPONENT32F || format == GL_DEPTH_COMPONENT32) {
-		state.info_png.color.colortype = LCT_GREY;
-		state.info_png.color.bitdepth = 16;
-	}
+	if (channels == 1) state.info_png.color.colortype = LCT_GREY;
 	else if (channels == 3) state.info_png.color.colortype = LCT_RGB;
-	else state.info_png.color.colortype = LCT_RGBA;
-
-	// Input
-	state.info_raw.bitdepth = 8;
-	if (format == GL_DEPTH_COMPONENT || format == GL_DEPTH_COMPONENT32F || format == GL_DEPTH_COMPONENT32) {
-		state.info_raw.colortype = LCT_GREY;
-		state.info_raw.bitdepth = 32;
-	}
-	else if (channels == 3) state.info_raw.colortype = LCT_RGB;
-	else state.info_raw.colortype = LCT_RGBA;
-
-	// Switch of auto encoding
-	state.encoder.auto_convert = 0;
 
 	// Encode to 8bit
-	std::vector<unsigned char> image;
+	std::vector<unsigned char> image(imageSize);
+	// unsigned error = lodepng::encode(filename, image, width, height);
+	// unsigned error = lodepng::encode(image, PngBuffer, width, height);
 	unsigned error = lodepng::encode(image, PngBuffer, width, height, state);
 	if (!error) lodepng::save_file(image, filename);
-	else std::cout << "Error " << error << " while encoding PNG image!\n";
+	else std::cout << "Error: " << lodepng_error_text(error) << ", while encoding PNG image!\n";
+
+	if (data) {
+		delete[] data;
+		data = NULL;
+	}
+
+	if (error) return false;
+	else return true;
+}
+
+bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height)
+{
+
+	// get the image data
+	long imageSize = width * height * 4;
+	float *data = new float[imageSize];
+
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_FLOAT, data);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// Save to PNG
+	std::vector<unsigned char> PngBuffer(imageSize);
+	
+	for (unsigned int w = 0u; w < width; w++)
+	{
+		for (unsigned int h = 0u; h < height; h++)
+		{
+			PngBuffer.push_back(data[h * width + w + 0] * 255);
+			PngBuffer.push_back(data[h * width + w + 1] * 255);
+			PngBuffer.push_back(data[h * width + w + 2] * 255);
+			PngBuffer.push_back(data[h * width + w + 3] * 255);
+		}
+	}
+
+	// Encode to 8bit
+	std::vector<unsigned char> image(imageSize);
+	unsigned error = lodepng::encode(image, PngBuffer, width, height);
+	if (!error) lodepng::save_file(image, filename);
+	else std::cout << "Error: " << lodepng_error_text(error) << ", while encoding PNG image!\n";
 
 	if (data) {
 		delete[] data;

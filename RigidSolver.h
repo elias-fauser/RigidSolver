@@ -25,7 +25,8 @@ public:
 
 	// Helper for this and other classes
 	static bool checkFBOStatus(std::string fboName);
-	static bool saveFramebufferPNG(const char filename[160], GLuint texture, int width, int height, GLenum format, GLenum type);
+	static bool saveFramebufferPNG(std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type);
+	static bool saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height);
 
 	// Public static vertex arrays
 	static VertexArray vaQuad;

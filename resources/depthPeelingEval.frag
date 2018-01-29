@@ -2,7 +2,7 @@
 
 #define M_PI  3.14159265
 
-in vec2 texCoord;
+in vec2 texCoords;
 
 uniform int z;
 uniform float zNear;
@@ -26,19 +26,18 @@ float zValueFromDepthTexture(float depthValue, float zNear, float zFar)
 // --------------------------------------------------
 void main() {
 	
-	float depth1Value = texture(depth1, texCoord).x;
-	float depth2Value = texture(depth2, texCoord).x;
-	float depth3Value = texture(depth3, texCoord).x;
-	float depth4Value = texture(depth4, texCoord).x;
+	float depth1Value = texture(depth1, texCoords).x;
+	float depth2Value = texture(depth2, texCoords).x;
+	float depth3Value = texture(depth3, texCoords).x;
+	float depth4Value = texture(depth4, texCoords).x;
 
-	if (z < zValueFromDepthTexture(depth1Value, zNear, zFar) && z > zValueFromDepthTexture(depth2Value, zNear, zFar)){
+	if (z > depth1Value && z < depth2Value){
 		gl_FragColor = vec4(1.0);
 	}
-	else if (z < zValueFromDepthTexture(depth3Value, zNear, zFar) && z > zValueFromDepthTexture(depth4Value, zNear, zFar)){
+	else if (z > depth3Value && z < depth4Value){
 		gl_FragColor = vec4(1.0);
 	}
 	else {
 		gl_FragColor = vec4(0.0);
-
 	}
 }
