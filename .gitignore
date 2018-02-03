@@ -359,3 +359,5 @@ ASALocalRun/
 
 # CMAKE
 cmake-build-debug/
+
+*.bmp
