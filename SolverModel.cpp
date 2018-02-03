@@ -39,7 +39,10 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	//  Determine grid attributes and setup
 	// -------------------------------------------------- 
 
-	GLuint textures[NUM_DEPTH_PEEL_PASSES];
+	GLuint colorTextures[NUM_DEPTH_PEEL_PASSES];
+	GLuint depthTextures[NUM_DEPTH_PEEL_PASSES];
+	GLuint depthFBOs[NUM_DEPTH_PEEL_PASSES];
+
 	glm::ivec3 gridResolution = grid->getGridResolution();
 	glm::vec3 gridSize = grid->getGridSize();
 	glm::vec3 modelSize = getModelSize();
@@ -47,9 +50,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	glm::vec3 btmLeftFrontCorner = grid->getBtmLeftFront();
 	glm::vec3 topRightBackCorner = grid->getTopRightBack();
 	
-	float bias = 0.01f;
+	float bias = 0.1f;
 	float zNear = bias;
-	float zFar = (gridSize.z + bias) * 100;
+	float zFar = gridSize.z + bias;
 
 	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
 	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
@@ -66,186 +69,164 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	//  Creating the FBO and depth peeling textures
 	// -------------------------------------------------- 
 
-	GLuint depthPeelingFBO;
-	glGenFramebuffers(1, &depthPeelingFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, depthPeelingFBO);
+	glGenFramebuffers(NUM_DEPTH_PEEL_PASSES, depthFBOs);
 
 	// Add one color attachment so that the buffer is not incomplete
-	GLuint colorTexture;
-	glGenTextures(1, &colorTexture);
-	glBindTexture(GL_TEXTURE_2D, colorTexture);
-
-	// Set the wrap and interpolation parameter
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gridResolution.x, gridResolution.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	glGenTextures(NUM_DEPTH_PEEL_PASSES, colorTextures);
 
 	// Allocate number of depth textures
-	glGenTextures(NUM_DEPTH_PEEL_PASSES, textures);
+	glGenTextures(NUM_DEPTH_PEEL_PASSES, depthTextures);
 
 	for (int i = 0; i < NUM_DEPTH_PEEL_PASSES; i++) {
 		
-		glBindTexture(GL_TEXTURE_2D, textures[i]);
+		glBindFramebuffer(GL_FRAMEBUFFER, depthFBOs[i]);
 
-		// Set the wrap and interpolation parameter
+		// Color texture
+		glBindTexture(GL_TEXTURE_2D, colorTextures[i]);
+
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-		// Init empty image (to currently bound FBO)
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gridResolution.x, gridResolution.y, 0, GL_RGBA, GL_FLOAT, NULL);
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTextures[i], 0);
+
+		// Depth texture
+		glBindTexture(GL_TEXTURE_2D, depthTextures[i]);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, gridResolution.x, gridResolution.y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-		glBindTexture(GL_TEXTURE_2D, 0);
+		
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTextures[i], 0);
+		
+		RigidSolver::checkFBOStatus(std::string("Depth Peeling FBO - Pass ") + std::to_string(i));
+
 	}
 
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	// --------------------------------------------------
 	//  Rendering the depth peels
 	// -------------------------------------------------- 
 
-	// Render the depth passes
-	peelingShader.Bind();
-
-	GLuint attachments[] = { GL_COLOR_ATTACHMENT0 };
-	glDrawBuffers(1, attachments);
-
-	glUniformMatrix4fv(peelingShader.GetUniformLocation("projMX"), 0, false, glm::value_ptr(projMatrix));
-	glUniformMatrix4fv(peelingShader.GetUniformLocation("viewMX"), 0, false, glm::value_ptr(viewMatrix));
-	glUniformMatrix4fv(peelingShader.GetUniformLocation("modelMX"), 0, false, glm::value_ptr(modelMatrix));
-
-	// All depth values since they will be discarded in the shader
-	glEnable(GL_DEPTH_TEST);
-	glDepthRange(0.0f, 1.0f);
-	glDepthFunc(GL_LEQUAL);
-	glDepthMask(true);
-
 	for (int i = 0; i < NUM_DEPTH_PEEL_PASSES; i++) {
 
-		int A = i % 2;
-		int B = (i + 1) % 2;
-		
+		glBindFramebuffer(GL_FRAMEBUFFER, depthFBOs[i]);
+
+		// All depth values since they will be discarded in the shader
+		glEnable(GL_DEPTH_TEST);
+		glClearDepth(1.f);
+		glDepthFunc(GL_ALWAYS);
+		glDepthMask(true);
+
+		// Render the depth passes
+		peelingShader.Bind();
+
+		GLuint attachments[] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, attachments);
+
+		glUniformMatrix4fv(peelingShader.GetUniformLocation("projMX"), 0, false, glm::value_ptr(projMatrix));
+		glUniformMatrix4fv(peelingShader.GetUniformLocation("viewMX"), 0, false, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(peelingShader.GetUniformLocation("modelMX"), 0, false, glm::value_ptr(modelMatrix));
+
 		// First depth map just write it
-		/*
 		if (i == 0) {
 			glDisable(GL_DEPTH_TEST);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[i], 0);
-
 			glUniform1i(peelingShader.GetUniformLocation("enabled"), 0);
 
-			// Clear the write depth texture once before rendering
-			glClear(GL_DEPTH_BUFFER_BIT);
 		}
 		else {
 			glEnable(GL_DEPTH_TEST);
-
 			glUniform1i(peelingShader.GetUniformLocation("enabled"), 1);
 
 			// Depth unit 0 - The one that is read from
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, textures[i-1]);
+			glBindTexture(GL_TEXTURE_2D, depthTextures[i-1]);
 			glUniform1i(peelingShader.GetUniformLocation("lastDepth"), 0);
 
-			// Depth unit 1 - The one that is written to
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[i], 0);
-
-			// Clear the write depth texture once before rendering
-			glClear(GL_DEPTH_BUFFER_BIT);
-
 		}
-		*/
-
-		// Add the right depth texture
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, textures[i], 0);
-		RigidSolver::checkFBOStatus(std::string("Depth Peeling FBO - Pass ") + std::to_string(i));
 
 		this->Bind();
 
 		glViewport(0, 0, gridResolution.x, gridResolution.y);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		// Clear the write depth texture once before rendering
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glDrawElements(GL_TRIANGLES, GetNumVertices() * 3, GL_UNSIGNED_INT, nullptr);
-		
+
 		this->Release();
+		peelingShader.Release();
 
 		if (DEBUGGING) {
-			std::string fileName = currentDirectory + std::string("/depthPeelingPass_") + std::to_string(i) + std::string(".bmp");
-			// RigidSolver::saveDepthTexturePNG(fileName, textures[i], gridResolution.x, gridResolution.y);
+			std::string fileNameColor = RigidSolver::debugDirectory + std::string("/depthPeelingPass_color_") + std::to_string(i) + std::string(".bmp");
+			int save_result;
 
 			// ---- SAVING COLOR IMAGE -------
-			unsigned char * data;
-			data = new unsigned char[gridResolution.x * gridResolution.y * 4];
+			unsigned char * colorData;
+			colorData = new unsigned char[gridResolution.x * gridResolution.y * 4];
+			
+			// glBindTexture(GL_TEXTURE_2D, colorTextures[i]);
+			// glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, colorData);
+			// glBindTexture(GL_TEXTURE_2D, 0);
 
 			glReadBuffer(GL_COLOR_ATTACHMENT0);
-			glReadPixels(0, 0, gridResolution.x, gridResolution.y, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glReadPixels(0, 0, gridResolution.x, gridResolution.y, GL_RGBA, GL_UNSIGNED_BYTE, colorData);
 			glReadBuffer(GL_NONE);
 
-			int save_result = SOIL_save_image
+			save_result = SOIL_save_image
 			(
-				fileName.c_str(),
+				fileNameColor.c_str(),
 				SOIL_SAVE_TYPE_BMP,
 				gridResolution.x, gridResolution.y, 4,
-				data
+				colorData
 			);
 
 			if (save_result == 0) printf("SOIL loading error: '%s'\n", SOIL_last_result());
 
-			delete[] data;
-		}
-			/*
-			// ---- SAVING DEPTH IMAGE -------
+			delete[] colorData;
 
-			unsigned char * data;
-			data = new unsigned char[gridResolution.x * gridResolution.y];
+			// ---- SAVING DEPTH IMAGE -------
+			std::string fileNameDepth = RigidSolver::debugDirectory + std::string("/depthPeelingPass_depth_") + std::to_string(i) + std::string(".bmp");
+
+			unsigned char * depthData;
+			depthData = new unsigned char[gridResolution.x * gridResolution.y];
 
 			GLuint * bufferData;
 			bufferData = new GLuint[gridResolution.x * gridResolution.y];
 
-			glBindTexture(GL_TEXTURE_2D, textures[i]);
+			glBindTexture(GL_TEXTURE_2D, depthTextures[i]);
 			glGetTexImage(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, bufferData);
 			glBindTexture(GL_TEXTURE_2D, 0);
 
 			for (unsigned int i = 0; i < gridResolution.x * gridResolution.y; i++) {
 				int r8 = int(bufferData[i] / 4294967295.f * 255.f);
-				data[i] = (unsigned char)r8;
+				depthData[i] = (unsigned char)r8;
 			}
-			int save_result = SOIL_save_image
+			save_result = SOIL_save_image
 			(
-			fileName.c_str(),
-			SOIL_SAVE_TYPE_BMP,
-			gridResolution.x, gridResolution.y, 1,
-			data
+				fileNameDepth.c_str(),
+				SOIL_SAVE_TYPE_BMP,
+				gridResolution.x, gridResolution.y, 1,
+				depthData
 			);
 
 			if (save_result == 0) printf("SOIL loading error: '%s'\n", SOIL_last_result());
 
 			delete[] bufferData;
-			delete[] data;
-			}
-			*/
-
-
-			/*
-			for (unsigned int h = 0; h < gridResolution.y; h++)
-			{
-				for (unsigned int w = 0; w < gridResolution.x; w++) {
-
-					std::cout << bufferData[h * gridResolution.x + w] << ", ";
-				}
-
-				std::cout << std::endl;
-			}
-			*/
-
+			delete[] depthData;
+		}
 
 	}
-	peelingShader.Release();
 
-	glDepthFunc(GL_LESS);
+	glDepthFunc(GL_LEQUAL);
 
 	// --------------------------------------------------
 	//  Create a 3D texture for the output
@@ -286,19 +267,19 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	// Add the lookup depth textures
 	// TODO: Change from hard coded to dynamic
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, textures[0]);
+	glBindTexture(GL_TEXTURE_2D, depthTextures[0]);
 	glUniform1i(peelingEvaluationShader.GetUniformLocation("depth1"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, textures[1]);
+	glBindTexture(GL_TEXTURE_2D, depthTextures[1]);
 	glUniform1i(peelingEvaluationShader.GetUniformLocation("depth2"), 1);
 
 	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, textures[2]);
+	glBindTexture(GL_TEXTURE_2D, depthTextures[2]);
 	glUniform1i(peelingEvaluationShader.GetUniformLocation("depth2"), 2);
 
 	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, textures[3]);
+	glBindTexture(GL_TEXTURE_2D, depthTextures[3]);
 	glUniform1i(peelingEvaluationShader.GetUniformLocation("depth3"), 3);
 
 	for (unsigned int z = 0u; z < gridResolution.x; z++) {
@@ -379,8 +360,42 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 	numParticles = particles.size() / 3;
 
+	if (numParticles == 0 && DEBUGGING) {
+		// Adding some dummy particles for testing - if the model can't be depth peeled
+		particlePositions = new float[6 * 3];
+		numParticles = 6;
+
+		float halfVoxelLength = voxelLength / 2.f;
+
+		particlePositions[0] = -halfVoxelLength;
+		particlePositions[1] = 0.f;
+		particlePositions[2] = 0.f;
+
+		particlePositions[3] = halfVoxelLength;
+		particlePositions[4] = 0.f;
+		particlePositions[5] = 0.f;
+
+		particlePositions[6] = 0.f;
+		particlePositions[7] = 0.f;
+		particlePositions[8] = -halfVoxelLength;
+
+		particlePositions[9] = 0.f;
+		particlePositions[10] = 0.f;
+		particlePositions[11] = halfVoxelLength;
+
+		particlePositions[12] = 0.f;
+		particlePositions[13] = halfVoxelLength;
+		particlePositions[14] = 0.f;
+
+		particlePositions[15] = 0.f;
+		particlePositions[16] = -halfVoxelLength;
+		particlePositions[17] = 0.f;
+
+		std::cout << "Depth peeling failed. Debug mode created dummy particles!" << std::endl;
+	}
+
 	// Status print
-	std::cout << "Model particles created. " << getNumParticles() << " particles per rigid model determined!\n";
+	std::cout << "Model particles created. " << getNumParticles() << " particles per rigid model determined!" << std::endl;
 
 	if (gridData) {
 		delete[] gridData;
@@ -392,11 +407,12 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 	// Delete texture
 	glDeleteTextures(1, &gridTex);
-	glDeleteTextures(1, &colorTexture);
+	glDeleteTextures(NUM_DEPTH_PEEL_PASSES, colorTextures);
+	glDeleteTextures(NUM_DEPTH_PEEL_PASSES, depthTextures);
 
 	// Delete FBO and unbind
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glDeleteFramebuffers(1, &depthPeelingFBO);
+	glDeleteFramebuffers(NUM_DEPTH_PEEL_PASSES, depthFBOs);
 	glDeleteFramebuffers(1, &depthPeelingEvalFBO);
 
 	glEnable(GL_DEPTH_TEST);

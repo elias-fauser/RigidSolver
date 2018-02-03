@@ -9,12 +9,9 @@ Implementation:
 * Destructor
 * APIVAR Limits
 * Error when reloading shaders
-* Initialize Position Textures with emitter position
 * The Grid must be updated when the ParticleSize is changed
 * How to handle spawning if time is too low and objects intersect (Forces will be great)
-* Textures should probably be with full coordinates instead of [0,1]
 * Normalize the outputs to textures
 * Scaling for depth peeling must be reverted on the particles
-* particlePositionsTexture needs to be relative to CoM
 * Check the layout position qualifiers for out
-* Can I remove the second pair of momentum attachments?
+* Inertia Tenesor needs to be recalculated

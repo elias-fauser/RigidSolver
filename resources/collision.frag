@@ -55,7 +55,7 @@ void main() {
 	
 	// Retrieve particle coordinates from current render position
 	ivec2 particleCoords = ivec2(gl_FragCoord.xy);
-	int particleID = particleCoords.y * particleTextureEdgeLength + particleCoords.x * particlesPerModel;
+	int particleID = particleCoords.y * particleTextureEdgeLength + particleCoords.x;
 	int rigidBodyID_i = int(particleID / particlesPerModel);
 
 	vec3 rigidBodyPosition_i = texelFetch(rigidBodyPositions, idxTo2DRigidBodyCoords(rigidBodyID_i), 0).xyz;

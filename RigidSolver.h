@@ -19,14 +19,19 @@ public:
     virtual bool Activate(void);
     virtual bool Deactivate(void);
     virtual bool Init(void);
+	virtual bool Idle(void);
     virtual bool Render(void);
 	virtual bool Resize(int width, int height);
 	virtual bool Keyboard(unsigned char key, int x, int y);
 
 	// Helper for this and other classes
+	static std::string debugDirectory;
+
 	static bool checkFBOStatus(std::string fboName);
 	static bool saveFramebufferPNG(std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type);
 	static bool saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height);
+	template <class T> static bool saveArrayToTXT(std::string filename, T * array, int num, int chunkSize);
+
 	static void drawAbstractData(unsigned int width, unsigned int height, GLShader &shader);
 
 	// Public static vertex arrays
@@ -59,6 +64,7 @@ private:
 	virtual bool collisionPass(void);
 	virtual bool momentaPass(void);
 	virtual bool beautyPass(void);
+	virtual bool solverPass(void);
 
 	virtual void createFBOTexture(GLuint &outID, const GLenum internalFormat, const GLenum format, const GLenum type, GLint filter, int width, int height, void * data);
 	virtual int getRigidBodyTextureSizeLength(void);
@@ -85,6 +91,7 @@ private:
 	std::string momentaVertShaderName, momentaFragShaderName;
 	std::string collisionVertShaderName, collisionFragShaderName;
 	std::string collisionGridVertShaderName, collisionGridFragShaderName;
+	std::string solverVertShaderName, solverFragShaderName;
 
 	// Transformations
 	float aspectRatio = 1.f;
@@ -105,7 +112,7 @@ private:
 	// Vertex Arrays
 	SolverModel vaModel;
 	VertexArray vaParticles;
-	VertexArray vaParticleVertice;
+	VertexArray vaVertex;
 
 	// FBOs
 	GLuint rigidBodyFBO;
@@ -120,16 +127,39 @@ private:
 	GLuint gridTex;
 
 	bool texSwitch = false; // false=1, true=2
+
+	GLuint rigidBodyInitialParticlePositionsTex;
 	GLuint rigidBodyPositionsTex1, rigidBodyPositionsTex2;
 	GLuint rigidBodyQuaternionsTex1, rigidBodyQuaternionsTex2;
-	GLuint rigidBodyLinearMomentum1, rigidBodyLinearMomentum2;
-	GLuint rigidBodyAngularMomentum1, rigidBodyAngularMomentum2;
+	GLuint rigidBodyLinearMomentumTex;
+	GLuint rigidBodyAngularMomentumTex;
 
 	GLuint particlePositionsTex;
 	GLuint particleVelocityTex;
+	GLuint particleRelativePositionTex;
 	GLuint particleForcesTex;
 
 
 };
+
+template <class T>
+bool RigidSolver::saveArrayToTXT(std::string filename, T * array, int num, int chunkSize)
+{
+	std::ofstream file(filename.c_str());
+
+	if (file.is_open())
+	{
+		for (int count = 0; count < num / chunkSize; count += chunkSize) {
+			file << array[count];
+			for (int chunk = 1; chunk < chunkSize; chunk++) {
+				file << " " << array[count + chunk];
+			}
+			file << std::endl;
+		}
+		file.close();
+		return true;
+	}
+	else return false;
+}
 
 extern "C" OGL4COREPLUGIN_API RenderPlugin* OGL4COREPLUGIN_CALL CreateInstance(COGL4CoreAPI *Api);
