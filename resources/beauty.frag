@@ -48,6 +48,5 @@ void main() {
     vec3 view = normalize(position - cameraPosition.xyz);
 	view = vec3(1, 1, 0);
 
-	gl_FragColor = vec4(texCoords, 1.0, 1.0);
-    // gl_FragColor = vec4(blinnPhong(normalize(normal), normalize(lightDirection), view), 1.0);
+    gl_FragColor = vec4(blinnPhong(normalize(normal), normalize(lightDirection), view), 1.0);
 }

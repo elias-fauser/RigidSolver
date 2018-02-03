@@ -38,7 +38,7 @@ void main() {
 	// Calculate angular velocity
 	vec3 rigidAngularVelocity = quaternionRotation * invIntertiaTensor * quaternionRotation * rigidAngularMomentum;
 
-	particlePosition = rigidPosition + relativePosition;
+	particlePosition = relativePosition;
 	particleVelocity = rigidVelocity + cross(rigidAngularVelocity, relativePosition);
 
 	

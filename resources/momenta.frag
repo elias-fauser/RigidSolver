@@ -2,39 +2,24 @@
 
 #define M_PI  3.14159265
 
-uniform mat4 invModelViewMX;
-uniform sampler3D volume;        //!< 3D texture handle 
-uniform sampler1D transferTex;
+layout(location=0) out vec3 linearMomentumOut;
+layout(location=1) out vec3 angularMomentumOut;
 
-uniform vec3 ambient;      //!< ambient color
-uniform vec3 diffuse;      //!< diffuse color
-uniform vec3 specular;     //!< specular color
+uniform sampler2D particlePositions;
+uniform sampler2D particleForces;
 
-uniform float k_amb;       //!< ambient factor
-uniform float k_diff;      //!< diffuse factor
-uniform float k_spec;      //!< specular factor
-uniform float k_exp;       //!< specular exponent
+// Uniforms
+uniform int particlesPerModel;
+uniform int particleTextureEdgeLength;
+uniform int rigidBodyTextureEdgeLength;
 
-uniform vec3 lightDirection;
+ivec2 idxTo2DParticleCoords(int idx){
 
-in vec3 normal;
-in vec2 texCoords;
-in vec3 position;
+	int x = idx % particleTextureEdgeLength;
+	int y = idx / particleTextureEdgeLength;
 
-// --------------------------------------------------
-//   Blinn-Phong shading model
-// --------------------------------------------------
-vec3 blinnPhong(vec3 n, vec3 l, vec3 v) {
-	
-	vec3 h = normalize(v + l);
+	return ivec2(x, y);
 
-	vec3 Camb = k_amb * ambient;
-	vec3 Cdiff = diffuse * k_diff * max(0.0, dot(n, l));
-	vec3 Cspec = specular * k_spec * (k_exp + 2) / (2.0 * M_PI) * pow(max(0.0, dot(h, n)), k_exp);
-
-    vec3 color = Camb + Cdiff + Cspec;
-
-    return color;
 }
 
 // --------------------------------------------------
@@ -42,11 +27,25 @@ vec3 blinnPhong(vec3 n, vec3 l, vec3 v) {
 // --------------------------------------------------
 void main() {
 	
-	vec4 cameraPosition = invModelViewMX * vec4(.0f, .0f, .0f, 1.0f); // Camera at origin
-	cameraPosition /= cameraPosition.w;
-	
-    vec3 view = normalize(position - cameraPosition.xyz);
+	ivec2 rigidBodyTexCoords = ivec2(gl_FragCoord.xy);
+	int rigidBodyID = rigidBodyTexCoords.y * rigidBodyTextureEdgeLength + rigidBodyTexCoords.x;
 
-	gl_FragColor = vec4(normal, 1.0);
-    // gl_FragColor = vec4(blinnPhong(normalize(normal), normalize(lightDirection), view), 1.0);
+	vec3 linearMomentum = vec3(0.f);
+	vec3 angularMomentum = vec3(0.f);
+
+	int particleStartIndex = rigidBodyID * particlesPerModel;
+
+	for (int particleOffset = 0; particleOffset < particlesPerModel; particleOffset++){
+		int particleIdx = particleStartIndex + particleOffset;
+		ivec2 particleTexCoords = idxTo2DParticleCoords(particleIdx);
+		
+		vec3 particleRelativePosition = texelFetch(particlePositions, particleTexCoords, 0).xyz;
+		vec3 particleForces = texelFetch(particleForces, particleTexCoords, 0).xyz;
+
+		linearMomentum += particleForces;
+		angularMomentum += cross(particleRelativePosition, particleForces);
+	}
+	
+	linearMomentumOut = linearMomentum;
+	angularMomentumOut = angularMomentum;
 }

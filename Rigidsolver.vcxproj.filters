@@ -47,6 +47,9 @@
     <ClCompile Include="..\..\..\gl3w\src\gl3w.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\..\lib\native\src\lodepng.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="README.txt" />
@@ -73,6 +76,30 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="resources\depthPeeling.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\momenta.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\momenta.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\collision.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\collision.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\collisionGrid.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\collisionGrid.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\depthPeelingEval.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\depthPeelingEval.vert">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

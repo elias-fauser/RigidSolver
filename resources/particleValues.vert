@@ -26,12 +26,12 @@ out vec3 rigidAngularMomentum;
 flat out int rigidBodyID;
 flat out int particleID;
 
-vec2 invocationID2particleCoords(int idx, int rigidID, int particleID){
+ivec2 idxTo2DParticleCoords(int idx){
 
-	int x = int((rigidID * particlesPerModel) / particleTextureEdgeLength);
-	int y = idx % (x * particleTextureEdgeLength);
+	int x = idx % particleTextureEdgeLength;
+	int y = idx / particleTextureEdgeLength;
 
-	return vec2(x, y);
+	return ivec2(x, y);
 
 }
 
@@ -45,11 +45,11 @@ void main() {
 
 	// Determine which rigid Body we are and what particle
 	int idx = gl_InstanceID;
-	rigidBodyID = int(idx / particlesPerModel);
+	int rigidBodyID = int(idx / particlesPerModel);
 	particleID = idx % particlesPerModel;
 
 	// Mapping of invocation id to particle coord
-    gl_Position = projMX * vec4(invocationID2particleCoords(idx, rigidBodyID, particleID), 0.0, 1.0);
+    gl_Position = projMX * vec4(idxTo2DParticleCoords(idx), 0.0, 1.0);
 	initParticlePosition = (gl_Position / gl_Position.w).xyz;
 
 	// Fill all the out variables needed

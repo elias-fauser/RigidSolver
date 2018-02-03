@@ -2,8 +2,12 @@
 
 // Uniforms
 uniform mat4 modelMX;
+uniform mat4 projMX;
 
-uniform Sampler2D particlePostions;
+uniform sampler2D particlePositions;
+
+uniform vec3 btmLeftFrontCorner;
+uniform vec3 gridSize;
 
 uniform int particlesPerModel;
 uniform int particleTextureEdgeLength;
@@ -12,32 +16,42 @@ uniform int rigidBodyTextureEdgeLength;
 // Inputs
 layout(location = 0) in vec4  in_position;
 
+// Outputs
 flat out int rigidBodyID;
 flat out int particleID;
+out vec4 particlePosition;
 
-vec2 invocationID2particleCoords(int idx, int rigidID, int particleID){
+ivec2 idxTo2DParticleCoords(int idx){
 
-	int x = int((rigidID * particlesPerModel) / particleTextureEdgeLength);
-	int y = idx % (x * particleTextureEdgeLength);
+	int x = idx % particleTextureEdgeLength;
+	int y = idx / particleTextureEdgeLength;
 
-	return vec2(x, y);
+	return ivec2(x, y);
 
 }
 
-vec2 rigidBodyIdx2TextureCoords(int idx) {
+ivec2 rigidBodyIdx2TextureCoords(int idx) {
 	int x = idx / rigidBodyTextureEdgeLength;
 	int y = idx % rigidBodyTextureEdgeLength;
-	return vec2(x,y);
+	return ivec2(x,y);
 }
 
 void main() {    
 
 	// Determine which rigid Body we are and what particle
-	int idx = gl_InstanceID;
-	rigidBodyID = int(idx / particlesPerModel);
-	particleID = idx % particlesPerModel;
+	int particleID = gl_InstanceID;
+	rigidBodyID = int(particleID / particlesPerModel);
 
 	// Mapping of invocation id to particle coord
-    gl_Position = modelMX * texelFetch(particlePositions, invocationID2particleCoords(idx, rigidBodyID, particleID), 0);
+    particlePosition = modelMX * texelFetch(particlePositions, idxTo2DParticleCoords(particleID), 0);
+	
+	// Determening the output position in the grid
+	float halfVoxelLenght = voxelLenght / 2.f;
+	float normalizedX = (int((particlePosition.x - btmLeftFrontCorner.x) / voxelLength) * voxelLength + halfVoxelLength) / gridSize.x;
+	float normalizedY = (int((particlePosition.y - btmLeftFrontCorner.y) / voxelLength) * voxelLength + halfVoxelLength) / gridSize.y;
 
+	// Determine voxel coord in NDC adding half a voxel offset to be in the middle
+	vec3 voxelCoords =  vec3(normalizedX, normalizedY, 0,f) + ;
+
+	gl_Position = projMX * vec4(voxelCoords, 1.f);
 }

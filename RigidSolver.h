@@ -27,6 +27,7 @@ public:
 	static bool checkFBOStatus(std::string fboName);
 	static bool saveFramebufferPNG(std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type);
 	static bool saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height);
+	static void drawAbstractData(unsigned int width, unsigned int height, GLShader &shader);
 
 	// Public static vertex arrays
 	static VertexArray vaQuad;
@@ -56,7 +57,7 @@ private:
 	virtual bool particleValuePass(void);
 	virtual bool collisionGridPass(void);
 	virtual bool collisionPass(void);
-	virtual bool solverPass(void);
+	virtual bool momentaPass(void);
 	virtual bool beautyPass(void);
 
 	virtual void createFBOTexture(GLuint &outID, const GLenum internalFormat, const GLenum format, const GLenum type, GLint filter, int width, int height, void * data);
@@ -115,6 +116,7 @@ private:
 	SolverGrid grid;
 
 	// Textures
+	GLuint beautyDepthTex;
 	GLuint gridTex;
 
 	bool texSwitch = false; // false=1, true=2

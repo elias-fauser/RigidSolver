@@ -11,6 +11,7 @@
 #include "OBJ_Loader.h"
 #include <iosfwd>
 #include "lodepng.h"
+#include "soil.h"
 
 // --------------------------------------------------
 //  Ground plane
@@ -183,7 +184,11 @@ bool RigidSolver::Activate(void) {
 	beautyFragShaderName = pathName + std::string("/resources/beauty.frag");
 	momentaVertShaderName = pathName + std::string("/resources/momenta.vert");
 	momentaFragShaderName = pathName + std::string("/resources/momenta.frag");
-	
+	collisionVertShaderName = pathName + std::string("/resources/collision.vert");
+	collisionFragShaderName = pathName + std::string("/resources/collision.frag");
+	collisionGridVertShaderName = pathName + std::string("/resources/collisionGrid.vert");
+	collisionGridFragShaderName = pathName + std::string("/resources/collisionGrid.frag");
+
 	// Setup Quad geometry
 	float quadVertices[] = { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f };
 	vaQuad.Create(4);
@@ -268,12 +273,7 @@ bool RigidSolver::Render(void) {
 	//  Passes
 	// --------------------------------------------------  
 
-	if (solverStatus && modelFiles.GetValue() != NULL) {
-
-		// Setting to orthographic since the calculations are view independent
-		// The ortho is used for depth peeling and grid lookup
-		// QUESTION: Do those coordinates need to be the world coords of the grid?
-		projMX = glm::ortho(0.f, 1.f, 0.f, 1.f);
+	if (solverStatus && modelFiles.GetValue() != NULL && vaModel.getNumParticles() > 0) {
 
 		// Physical values - Determine rigid positions and particle attributes
 		particleValuePass();
@@ -285,7 +285,7 @@ bool RigidSolver::Render(void) {
 		collisionPass();
 
 		// Particle positions - Determine the momenta and quaternions
-		solverPass();
+		momentaPass();
 
 	}
 
@@ -404,6 +404,8 @@ bool RigidSolver::loadModel(float * vertices, int * indices, int num) {
 	maximum *= scale;
 	vaModel.setBoundingBox(minimum.x, maximum.x, minimum.y, maximum.y, minimum.z, maximum.z);
 
+	delete[] movedVertices;
+	
 	// Create the particles
 	vaModel.createParticles(&grid);
 
@@ -412,8 +414,6 @@ bool RigidSolver::loadModel(float * vertices, int * indices, int num) {
 
 	// Reset simulation to restart everything
 	resetSimulation();
-
-	delete[] movedVertices;
 
 	return true;
 
@@ -493,6 +493,7 @@ bool RigidSolver::particleValuePass(void)
 	int sideLength = getParticleTextureSideLength();
 	if (sideLength == 0) return false;
 
+	/*
 	projMX = glm::ortho(0, sideLength, 0, sideLength);
 
 	// Clearing
@@ -500,6 +501,7 @@ bool RigidSolver::particleValuePass(void)
 
 	// Viewporting to output texture size
 	glViewport(0, 0, sideLength, sideLength);
+	*/
 
 	// Define the two outputs
 	GLuint attachments[] = { ParticlePositionAttachment, ParticleVelocityAttachment };
@@ -514,7 +516,8 @@ bool RigidSolver::particleValuePass(void)
 	glUniform1f(shaderParticleValues.GetUniformLocation("mass"), modelMass);
 
 	vaParticleVertice.Bind();
-	glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
+	drawAbstractData(sideLength, sideLength, shaderParticleValues);
+	// glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
 	vaParticleVertice.Release();
 
 	shaderParticleValues.Release();
@@ -527,25 +530,26 @@ bool RigidSolver::particleValuePass(void)
 bool RigidSolver::collisionGridPass(void)
 {
 
-	glBindFramebuffer(GL_FRAMEBUFFER, gridFBO);
 
 	// --------------------------------------------------
 	//  Initialization
 	// --------------------------------------------------   
 
-	// Initialize the grid texture to zeros
-	glFramebufferTexture3D(GL_DRAW_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
-	glDrawBuffer(GridIndiceAttachment);
-	GLuint clearColor[] = { 0, 0, 0, 0 };
-	glClearBufferuiv(GL_COLOR, 0, clearColor);
-
+	glBindFramebuffer(GL_FRAMEBUFFER, gridFBO);
 
 	// --------------------------------------------------
 	//  Rendering indices
 	// -------------------------------------------------- 
 
+	glm::vec3 gridSize = grid.getGridSize();
 	int sideLength = getParticleTextureSideLength();
-	projMX = glm::ortho(0, sideLength, 0, sideLength);
+	glm::vec3 btmleftFrontCorner = grid.getBtmLeftFront();
+	float voxelLength = grid.getVoxelLength();
+	int numberOfParticles = vaModel.getNumParticles();
+
+	if (sideLength == 0) return false;
+
+	projMX = glm::ortho(0.f, 1.f, 0.f, 1.f);
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -555,11 +559,20 @@ bool RigidSolver::collisionGridPass(void)
 
 	shaderCollisionGrid.Bind();
 
-	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(grid.getModelMatrix()));
-
+	// Textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, particlePositionsTex);
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("particlePostions"), 0);
+
+	// Unifroms
+	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(grid.getModelMatrix()));
+	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMX));
+
+	glUniform3fv(shaderCollisionGrid.GetUniformLocation("btmLeftFrontCorner"), 1, glm::value_ptr(btmleftFrontCorner));
+	glUniform3fv(shaderCollisionGrid.GetUniformLocation("gridSize"), 1, glm::value_ptr(gridSize));
+
+	glUniform1f(shaderCollisionGrid.GetUniformLocation("voxelLength"), voxelLength);
+
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("particleTextureEdgeLength"), sideLength);
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
@@ -570,32 +583,41 @@ bool RigidSolver::collisionGridPass(void)
 
 	vaParticleVertice.Bind();
 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	for (unsigned z = 0u; z < grid.getGridResolution().z; z++) {
 
-	//=== 1 PASS
-	glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
-	glDepthFunc(GL_LESS);
-	glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
-	
-	//=== 2 PASS
-	glColorMask(GL_TRUE, GL_FALSE, GL_TRUE, GL_TRUE);
-	glDepthFunc(GL_GREATER);
-	glEnable(GL_STENCIL_TEST);
-	glStencilFunc(GL_GREATER, 1, 0xFF); // TODO: Is this right?
-	glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-	glClear(GL_STENCIL_BUFFER_BIT);
+		// Setting z Coordinate to be able to determine voxel layer
+		glUniform1f(shaderCollisionGrid.GetUniformLocation("zCoord"), btmleftFrontCorner.z + z * voxelLength);
 
-	glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
+		// Binding the current 2D z layer
+		glFramebufferTexture3D(GL_DRAW_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, z);
 
-	//=== 3 PASS
-	glColorMask(GL_TRUE, GL_TRUE, GL_FALSE, GL_TRUE);
-	glClear(GL_STENCIL_BUFFER_BIT);
-	glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-	//=== 4 PASS
-	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
-	glClear(GL_STENCIL_BUFFER_BIT);
-	glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
+		//=== 1 PASS
+		glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
+		glDepthFunc(GL_LESS);
+		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+
+		//=== 2 PASS
+		glColorMask(GL_TRUE, GL_FALSE, GL_TRUE, GL_TRUE);
+		glDepthFunc(GL_GREATER);
+		glEnable(GL_STENCIL_TEST);
+		glStencilFunc(GL_GREATER, 1, 0xFF); // TODO: Is this right?
+		glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+		glClear(GL_STENCIL_BUFFER_BIT);
+
+		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+
+		//=== 3 PASS
+		glColorMask(GL_TRUE, GL_TRUE, GL_FALSE, GL_TRUE);
+		glClear(GL_STENCIL_BUFFER_BIT);
+		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+
+		//=== 4 PASS
+		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
+		glClear(GL_STENCIL_BUFFER_BIT);
+		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+	}
 
 	vaParticleVertice.Release();
 	shaderCollisionGrid.Release();
@@ -604,35 +626,59 @@ bool RigidSolver::collisionGridPass(void)
 	//  Finishing
 	// --------------------------------------------------   
 
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glDepthFunc(GL_LESS);
 	glDisable(GL_STENCIL_TEST);
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	return false;
 }
 
 bool RigidSolver::collisionPass() {
-	// Use particle VA
-	// Shader calculates grid positions
-	// Tests for collisions
-	// Calculates forces and writes them back to force texture
 
 	glBindFramebuffer(GL_FRAMEBUFFER, particlesFBO);
 
 	shaderCollision.Bind();
 
-	int sideLength = getParticleTextureSideLength();
-	projMX = glm::ortho(0, sideLength, 0, sideLength);
+	int particleTextureEdgeLength = getParticleTextureSideLength();
+	projMX = glm::ortho(0, particleTextureEdgeLength, 0, particleTextureEdgeLength);
 
 	// Textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_3D, gridTex);
 	glUniform1i(shaderCollision.GetUniformLocation("collisionGrid"), 0);
 
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, particlePositionsTex);
+	glUniform1i(shaderCollision.GetUniformLocation("particlePositions"), 1);
+
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, particleVelocityTex);
+	glUniform1i(shaderCollision.GetUniformLocation("particleVelocities"), 2);
+
+	if (texSwitch == false) {
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex1);
+		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 3);
+
+	}
+	else {
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex2);
+		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 3);
+	}
+
 	// Uniforms
+	glUniform1f(shaderCollision.GetUniformLocation("gravity"), gravity);
+	glUniform1f(shaderCollision.GetUniformLocation("voxelLength"), grid.getVoxelLength());
 	glUniform1f(shaderCollision.GetUniformLocation("particleDiameter"), particleSize);
+
 	glUniform1i(shaderCollision.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
-	glUniform1i(shaderCollision.GetUniformLocation("particleTextureEdgeLength"), sideLength);
+	glUniform1i(shaderCollision.GetUniformLocation("particleTextureEdgeLength"), particleTextureEdgeLength);
 	glUniform1i(shaderCollision.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+
+	glUniform3fv(shaderCollision.GetUniformLocation("btmLeftFrontCorner"), 1, glm::value_ptr(grid.getBtmLeftFront()));
 
 	// Outputs
 	GLuint attachments[] = { ParticleForceAttachment };
@@ -640,7 +686,8 @@ bool RigidSolver::collisionPass() {
 
 	// Draw particles - shaders tests for collisions
 	vaParticleVertice.Bind();
-	glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
+	RigidSolver::drawAbstractData(particleTextureEdgeLength, particleTextureEdgeLength, shaderCollision);
+	// glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
 	vaParticleVertice.Release();
 
 	shaderCollision.Release();
@@ -650,22 +697,23 @@ bool RigidSolver::collisionPass() {
 	return false;
 }
 
-bool RigidSolver::solverPass(void)
+bool RigidSolver::momentaPass(void)
 {
-	// Uses particle VA for current position
-	// Calculates inertia tensor
-	// Determines
 
 	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
 
 	shaderMomentaCalculation.Bind();
 
-	glUniform1f(shaderMomentaCalculation.GetUniformLocation("mass"), modelMass);
-	glUniform1i(shaderMomentaCalculation.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
-
 	// Output textures
-	GLuint attachments[] = { RigidBodyPositionAttachment1, RigidBodyQuaternionAttachment1 };
+	GLuint attachments[] = { RigidBodyLinearMomentumAttachment1, RigidBodyAngularMomentumAttachment1 };
 	glDrawBuffers(2, attachments);
+
+	int rigidBodyTextureLength = getRigidBodyTextureSizeLength();
+
+	// Uniforms
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("rigidBodyTextureEdgeLength"), rigidBodyTextureLength);
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particleTextureEdgeLength"), getParticleTextureSideLength());
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 
 	// Activate the input textures
 	glActiveTexture(GL_TEXTURE0);
@@ -673,12 +721,13 @@ bool RigidSolver::solverPass(void)
 	glUniform1i(shaderBeauty.GetUniformLocation("particlePositions"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, particleVelocityTex);
-	glUniform1i(shaderBeauty.GetUniformLocation("particleVelocities"), 1);
+	glBindTexture(GL_TEXTURE_2D, particleForcesTex);
+	glUniform1i(shaderBeauty.GetUniformLocation("particleForces"), 1);
 
 	// Update the particles and rigid body positions
-	glPatchParameteri(GL_PATCH_VERTICES, 1);
-	glDrawArraysInstanced(GL_PATCHES, 0, 1, spawnedObjects * vaModel.getNumParticles());
+	vaParticleVertice.Bind();
+	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderMomentaCalculation);
+	vaParticleVertice.Release();
 
 	shaderMomentaCalculation.Release();
 
@@ -692,10 +741,33 @@ bool RigidSolver::beautyPass(void) {
 	// Set up the proj Matrices
 	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
 
-	// ------------------- TEST -----------
+	// /* ------------------- TEST -----------
 	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
 	glm::vec3 gridSize = grid.getGridSize();
+	glm::ivec3 gridResolution = grid.getGridResolution();
 	float voxelLength = grid.getVoxelLength();
+	glm::vec3 modelSize = vaModel.getModelSize();
+	glm::vec3 btmLeftFrontCorner = grid.getBtmLeftFront();
+	glm::vec3 topRightBackCorner = grid.getTopRightBack();
+
+	float bias = 0.001f;
+	float zNear = bias;
+	float zFar = gridSize.z * 2.f;
+
+	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
+	viewMX = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	projMX = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
+
+	// Scale the model to fit the grid (so we use the full resolution)
+	glm::mat4 modelMatrix = grid.getModelMatrix();
+	float scaling = std::min(std::min(gridSize.x / modelSize.x, gridSize.y / modelSize.y), gridSize.z / modelSize.z);
+	modelMatrix = glm::scale(modelMatrix, scaling, scaling, scaling);
+
+	windowWidth = gridResolution.x;
+	windowHeight = gridResolution.y;
+
+	// --------------------------------------------------------------
+	// */
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -726,11 +798,11 @@ bool RigidSolver::beautyPass(void) {
 
 	glUniform3fv(shaderBeauty.GetUniformLocation("lightDirection"), 1, glm::value_ptr(glm::vec3(0.f, -1.f, 0.f)));
 
-	glUniform3fv(shaderBeauty.GetUniformLocation("ambient"), 1, glm::value_ptr(glm::vec3(0.4f, .4f, .4f)));
+	glUniform3fv(shaderBeauty.GetUniformLocation("ambient"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
 	glUniform3fv(shaderBeauty.GetUniformLocation("diffuse"), 1, glm::value_ptr(glm::vec3(.8f, .8f, .8f)));
 	glUniform3fv(shaderBeauty.GetUniformLocation("specular"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
 
-	glUniform1f(shaderBeauty.GetUniformLocation("k_amb"), 0.2f);
+	glUniform1f(shaderBeauty.GetUniformLocation("k_amb"), 0.4f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_diff"), 0.8f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_spec"), 1.0f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_exp"), 2.0f);
@@ -762,6 +834,13 @@ bool RigidSolver::beautyPass(void) {
 		// Instanced drawing of the rigid bodies
 		vaModel.Bind();
 		glDrawElementsInstanced(GL_TRIANGLES, vaModel.GetNumVertices() * 3, GL_UNSIGNED_INT, 0, spawnedObjects);
+
+		// Debugging mode just draws the model at its init position
+		if (DEBUGGING) {
+			glUniform1i(shaderBeauty.GetUniformLocation("positionByTexture"), 0);
+			glDrawElements(GL_TRIANGLES, vaModel.GetNumVertices() * 3, GL_UNSIGNED_INT, 0);
+		}
+
 		vaModel.Release();
 	}
 
@@ -783,6 +862,7 @@ bool RigidSolver::beautyPass(void) {
 //  UPDATES
 // --------------------------------------------------   
 
+
 /**
 * @brief Inits the solver FBO with the needed textures
 */
@@ -802,6 +882,8 @@ bool RigidSolver::initSolverFBOs() {
 bool RigidSolver::initRigidFBO(void)
 {
 
+	if (glIsFramebuffer(rigidBodyFBO)) glDeleteFramebuffers(1, &rigidBodyFBO);
+
 	glGenFramebuffers(1, &rigidBodyFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
 
@@ -817,6 +899,8 @@ bool RigidSolver::initRigidFBO(void)
 
 bool RigidSolver::initParticleFBO(void)
 {
+	if (glIsFramebuffer(particlesFBO)) glDeleteFramebuffers(1, &particlesFBO);
+
 	glGenFramebuffers(1, &particlesFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, particlesFBO);
 
@@ -832,6 +916,8 @@ bool RigidSolver::initParticleFBO(void)
 
 bool RigidSolver::initGridFBO(void)
 {
+	if (glIsFramebuffer(gridFBO)) glDeleteFramebuffers(1, &gridFBO);
+
 	glGenFramebuffers(1, &gridFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, gridFBO);
 
@@ -922,7 +1008,7 @@ bool RigidSolver::updateGrid() {
 	// Init empty image (to currently bound FBO)
 	glm::ivec3 gridDimensions = grid.getGridResolution();
 
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, gridDimensions.x, gridDimensions.y, gridDimensions.z, 0, GL_RGBA, GL_UNSIGNED_INT, NULL);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, gridDimensions.x, gridDimensions.y, gridDimensions.z, 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, NULL);
 	glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
 
 	glBindTexture(GL_TEXTURE_3D, 0);
@@ -1011,6 +1097,8 @@ bool RigidSolver::updateRigidBodies(void)
 * @brief Callback function which is invoked when the file dropdown list changed
 */
 void RigidSolver::fileChanged(FileEnumVar<RigidSolver> &var) {
+
+	if (!var.GetValue()) return;
 
 	std::string fileName = var.GetSelectedFileName();
 
@@ -1208,8 +1296,8 @@ bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int 
 {
 
 	// get the image data
-	long imageSize = width * height * 4;
-	float *data = new float[imageSize];
+	long imageSize = width * height;
+	GLfloat *data = new GLfloat[imageSize];
 
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
@@ -1219,14 +1307,10 @@ bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int 
 	// Save to PNG
 	std::vector<unsigned char> PngBuffer(imageSize);
 	
-	for (unsigned int w = 0u; w < width; w++)
-	{
+	for (unsigned int w = 0u; w < width; w++){
 		for (unsigned int h = 0u; h < height; h++)
 		{
-			PngBuffer.push_back(data[h * width + w + 0] * 255);
-			PngBuffer.push_back(data[h * width + w + 1] * 255);
-			PngBuffer.push_back(data[h * width + w + 2] * 255);
-			PngBuffer.push_back(data[h * width + w + 3] * 255);
+			PngBuffer.push_back((unsigned int)(data[h * width + w] * 255));
 		}
 	}
 
@@ -1243,4 +1327,73 @@ bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int 
 
 	if (error) return false;
 	else return true;
+}
+/** \brief Draws data into a texture using a window filling quad
+* The shader must be bound in the surrounding code!!
+
+This would look something like:
+
+-----------------------------
+shaderData.Bind();
+
+glActiveTexture(GL_TEXTURE0);
+glBindTexture(GL_TEXTURE_2D, textures[0]);
+glUniform1i(shaderData.GetUniformLocation("tex"), 0);
+
+GLuint attachments[] = { GL_COLOR_ATTACHMENT0 };
+glDrawBuffers(1, attachments);
+drawAbstractData(width, height, shaderData);
+shaderData.Release();
+-----------------------------
+
+
+Should be used with the following VS code:
+
+-----------------------------------------------
+#version 330
+
+layout(location = 0) in vec2  in_position;
+
+uniform mat4 projMX;
+
+void main() {
+	gl_Position = projMX * vec4(in_position, 0, 1);
+}
+
+-----------------------------
+
+
+And FR shader:
+
+-----------------------------
+
+#version 330
+
+layout(pixel_center_integer) in vec4 gl_FragCoord;
+
+uniform sampler2D tex;
+
+void main() {
+	gl_FragColor = vec4(texelFetch(tex, ivec2(gl_FragCoord.xy), 0).x, 0.f, 0.f, 1.f);
+}
+-----------------------------
+
+*
+*/
+void RigidSolver::drawAbstractData(unsigned int width, unsigned int height, GLShader &shader) {
+
+	glViewport(0, 0, width, height);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glm::mat4 orthoMX = glm::ortho(0.0f, 1.f, 0.0f, 1.f);
+
+	glUniform1i(shader.GetUniformLocation("width"), width);
+	glUniform1i(shader.GetUniformLocation("height"), height);
+
+	glUniformMatrix4fv(shader.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(orthoMX));
+
+	vaQuad.Bind();
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	vaQuad.Release();
+
 }
