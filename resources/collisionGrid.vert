@@ -13,6 +13,8 @@ uniform int particlesPerModel;
 uniform int particleTextureEdgeLength;
 uniform int rigidBodyTextureEdgeLength;
 
+uniform float voxelLength;
+
 // Inputs
 layout(location = 0) in vec4  in_position;
 
@@ -45,13 +47,18 @@ void main() {
 	// Mapping of invocation id to particle coord
     particlePosition = modelMX * texelFetch(particlePositions, idxTo2DParticleCoords(particleID), 0);
 	
-	// Determening the output position in the grid
-	float halfVoxelLenght = voxelLenght / 2.f;
-	float normalizedX = (int((particlePosition.x - btmLeftFrontCorner.x) / voxelLength) * voxelLength + halfVoxelLength) / gridSize.x;
-	float normalizedY = (int((particlePosition.y - btmLeftFrontCorner.y) / voxelLength) * voxelLength + halfVoxelLength) / gridSize.y;
+	// Determening the output position in the grid -  adding half a voxel offset to be in the middle
+	// FIXME: Is this really right? Since I have GL_NEAREST interpolation the grid value may be assigned to the wrong voxel
+	float halfVoxelLenghth = voxelLenght / 2.f;
+	
+	float normalizedX = (int((particlePosition.x - btmLeftFrontCorner.x) / voxelLength) * voxelLength) / gridSize.x;
+	float normalizedY = (int((particlePosition.y - btmLeftFrontCorner.y) / voxelLength) * voxelLength) / gridSize.y;
 
-	// Determine voxel coord in NDC adding half a voxel offset to be in the middle
-	vec3 voxelCoords =  vec3(normalizedX, normalizedY, 0,f) + ;
+	// float normalizedX = (int((particlePosition.x - btmLeftFrontCorner.x) / voxelLength) * voxelLength + halfVoxelLength) / gridSize.x;
+	// float normalizedY = (int((particlePosition.y - btmLeftFrontCorner.y) / voxelLength) * voxelLength + halfVoxelLength) / gridSize.y;
+
+	// Determine voxel coord in NDC
+	vec3 voxelCoords =  vec3(normalizedX, normalizedY, 0.f);
 
 	gl_Position = projMX * vec4(voxelCoords, 1.f);
 }
