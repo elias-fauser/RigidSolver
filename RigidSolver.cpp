@@ -456,39 +456,44 @@ bool RigidSolver::particleValuePass(void)
 	if (texSwitch == false) {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 0);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyPositions"), 0);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyQuaternions"), 1);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyQuaternions"), 1);
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyLinearMomentum1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyLinearMomentums"), 2);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyLinearMomentums"), 2);
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyAngularMomentum1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyAngularMomentums"), 3);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyAngularMomentums"), 3);
 
 	}
 	else {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 0);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyPositions"), 0);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyQuaternions"), 1);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyQuaternions"), 1);
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyLinearMomentum2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyLinearMomentums"), 2);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyLinearMomentums"), 2);
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyAngularMomentum2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyAngularMomentums"), 3);
+		glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyAngularMomentums"), 3);
 
 	}
+
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, particlePositionsTex);
+	glUniform1i(shaderParticleValues.GetUniformLocation("particlePositions"), 4);
+
 
 	int sideLength = getParticleTextureSideLength();
 	if (sideLength == 0) return false;
