@@ -49,7 +49,7 @@ void main() {
 	
 	// Determening the output position in the grid -  adding half a voxel offset to be in the middle
 	// FIXME: Is this really right? Since I have GL_NEAREST interpolation the grid value may be assigned to the wrong voxel
-	float halfVoxelLenghth = voxelLenght / 2.f;
+	float halfVoxelLenghth = voxelLength / 2.f;
 	
 	float normalizedX = (int((particlePosition.x - btmLeftFrontCorner.x) / voxelLength) * voxelLength) / gridSize.x;
 	float normalizedY = (int((particlePosition.y - btmLeftFrontCorner.y) / voxelLength) * voxelLength) / gridSize.y;

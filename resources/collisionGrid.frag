@@ -17,3 +17,4 @@ void main() {
 		gridOut = uvec4(particleID);
 	}
 	else discard;
+}
