@@ -128,7 +128,7 @@ private:
 
 	bool texSwitch = false; // false=1, true=2
 
-	GLuint rigidBodyInitialParticlePositionsTex;
+	GLuint initialParticlePositionsTex;
 	GLuint rigidBodyPositionsTex1, rigidBodyPositionsTex2;
 	GLuint rigidBodyQuaternionsTex1, rigidBodyQuaternionsTex2;
 	GLuint rigidBodyLinearMomentumTex;

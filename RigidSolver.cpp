@@ -77,14 +77,15 @@ enum RigidBodyAttachments {
 	RigidBodyQuaternionAttachment2 = GL_COLOR_ATTACHMENT3,
 	RigidBodyLinearMomentumAttachment = GL_COLOR_ATTACHMENT4,
 	RigidBodyAngularMomentumAttachment = GL_COLOR_ATTACHMENT5,
-	RigidBodyInitialParticlePositionsAttachment = GL_COLOR_ATTACHMENT6
 };
 
 enum ParticleAttachments {
 	ParticlePositionAttachment = GL_COLOR_ATTACHMENT0,
 	ParticleVelocityAttachment = GL_COLOR_ATTACHMENT1,
 	ParticleForceAttachment = GL_COLOR_ATTACHMENT2,
-	ParticleRelativePositionAttachment = GL_COLOR_ATTACHMENT3
+	ParticleRelativePositionAttachment = GL_COLOR_ATTACHMENT3,
+	initialParticlePositionsAttachment = GL_COLOR_ATTACHMENT6
+
 
 };
 
@@ -506,7 +507,7 @@ bool RigidSolver::particleValuePass(void)
 	glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyAngularMomentums"), 3);
 
 	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_1D, rigidBodyInitialParticlePositionsTex);
+	glBindTexture(GL_TEXTURE_1D, initialParticlePositionsTex);
 	glUniform1i(shaderParticleValues.GetUniformLocation("relativeParticlePositions"), 4);
 
 	int sideLength = getParticleTextureSideLength();
@@ -555,11 +556,11 @@ bool RigidSolver::particleValuePass(void)
 
 		glBindTexture(GL_TEXTURE_2D, particlePositionsTex);
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, particlePositions);
-		saveArrayToTXT((RigidSolver::debugDirectory + std::string("/particleValues_particlePositions.txt")).c_str(), particlePositions, particleSideLength * particleSideLength * 3, 3);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/particleValues_particlePositions.txt"), particlePositions, particleSideLength * particleSideLength * 3, 3);
 
 		glBindTexture(GL_TEXTURE_2D, particleVelocityTex);
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, particleVelocity);
-		saveArrayToTXT((RigidSolver::debugDirectory + std::string("/particleValues_particleVelocities.txt")).c_str(), particleVelocity, particleSideLength * particleSideLength * 3, 3);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/particleValues_particleVelocities.txt"), particleVelocity, particleSideLength * particleSideLength * 3, 3);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 		
@@ -688,7 +689,7 @@ bool RigidSolver::collisionGridPass(void)
 
 		glBindTexture(GL_TEXTURE_3D, gridTex);
 		glGetTexImage(GL_TEXTURE_3D, 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, gridIndices);
-		saveArrayToTXT((RigidSolver::debugDirectory + std::string("/collisionGrid_gridIndices.txt")).c_str(), gridIndices, arraySize, 4);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/collisionGrid_gridIndices.txt"), gridIndices, arraySize, 4);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -1009,6 +1010,22 @@ bool RigidSolver::initSolverFBOs() {
 	result = result && initParticleFBO();
 	result = result && initGridFBO();
 
+	// Write out the result of the initialParticlePositions
+	if (DEBUGGING) {
+
+		int size = std::max(vaModel.getNumParticles(), 1024) * 3;
+
+		float * data;
+		data = new float[size];
+		glBindTexture(GL_TEXTURE_1D, initialParticlePositionsTex);
+		glGetTexImage(GL_TEXTURE_1D, 0, GL_RGB, GL_FLOAT, data);
+		glBindTexture(GL_TEXTURE_1D, 0);
+
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/initialParticlePositions.txt"), data, size, 3);
+
+		delete[] data;
+
+	}
 	return result;
 
 }
@@ -1112,15 +1129,31 @@ bool RigidSolver::updateParticles() {
 	// Catch uninitialized number of bodies
 	if (particleTexEdgeLength <= 0) return false;
 
-	createFBOTexture(particlePositionsTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
-	createFBOTexture(particleVelocityTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
-	createFBOTexture(particleForcesTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
-	createFBOTexture(particleRelativePositionTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+	createFBOTexture(particlePositionsTex, GL_RGB32F, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+	createFBOTexture(particleVelocityTex, GL_RGB32F, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+	createFBOTexture(particleForcesTex, GL_RGB32F, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+	createFBOTexture(particleRelativePositionTex, GL_RGB32F, GL_RGB, GL_FLOAT, GL_NEAREST, particleTexEdgeLength, particleTexEdgeLength, NULL);
+
+	// Create the initial particle position tex as 1D tex
+	glGenTextures(1, &initialParticlePositionsTex);
+	glBindTexture(GL_TEXTURE_1D, initialParticlePositionsTex);
+
+	// Set the wrap and interpolation parameter
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	// Init empty image (to currently bound FBO)
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, std::max(vaModel.getNumParticles(), 1024), 0, GL_RGB, GL_FLOAT, vaModel.getParticlePositions());
+	glBindTexture(GL_TEXTURE_1D, 0);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticlePositionAttachment, GL_TEXTURE_2D, particlePositionsTex, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleVelocityAttachment, GL_TEXTURE_2D, particleVelocityTex, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleForceAttachment, GL_TEXTURE_2D, particleForcesTex, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticleRelativePositionAttachment, GL_TEXTURE_2D, particleRelativePositionTex, 0);
+
+	glFramebufferTexture1D(GL_FRAMEBUFFER, initialParticlePositionsAttachment, GL_TEXTURE_1D, initialParticlePositionsTex, 0);
 
 	return true;
 }
@@ -1168,26 +1201,12 @@ bool RigidSolver::updateRigidBodies(void)
 	//  Calculating back the square count
 	int rigidTexEdgeLength = getRigidBodyTextureSizeLength();
 
-	createFBOTexture(rigidBodyPositionsTex1, GL_RGBA, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
-	createFBOTexture(rigidBodyPositionsTex2, GL_RGBA, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
-	createFBOTexture(rigidBodyQuaternionsTex1, GL_RGBA, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
-	createFBOTexture(rigidBodyQuaternionsTex2, GL_RGBA, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
-	createFBOTexture(rigidBodyLinearMomentumTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
-	createFBOTexture(rigidBodyAngularMomentumTex, GL_RGB, GL_RGB, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
-
-	// Create the initial particle position tex as 1D tex
-	glGenTextures(1, &rigidBodyInitialParticlePositionsTex);
-	glBindTexture(GL_TEXTURE_1D, rigidBodyInitialParticlePositionsTex);
-
-	// Set the wrap and interpolation parameter
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	// Init empty image (to currently bound FBO)
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, vaModel.getNumParticles(), 0, GL_RGBA, GL_FLOAT, vaModel.getParticlePositions());
-	glBindTexture(GL_TEXTURE_1D, 0);
+	createFBOTexture(rigidBodyPositionsTex1, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
+	createFBOTexture(rigidBodyPositionsTex2, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
+	createFBOTexture(rigidBodyQuaternionsTex1, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
+	createFBOTexture(rigidBodyQuaternionsTex2, GL_RGBA32F, GL_RGBA, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
+	createFBOTexture(rigidBodyLinearMomentumTex, GL_RGBA32F, GL_RGB, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
+	createFBOTexture(rigidBodyAngularMomentumTex, GL_RGBA32F, GL_RGB, GL_FLOAT, GL_NEAREST, rigidTexEdgeLength, rigidTexEdgeLength, 0);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, RigidBodyPositionAttachment1, GL_TEXTURE_2D, rigidBodyPositionsTex1, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, RigidBodyPositionAttachment2, GL_TEXTURE_2D, rigidBodyPositionsTex2, 0);
@@ -1195,8 +1214,6 @@ bool RigidSolver::updateRigidBodies(void)
 	glFramebufferTexture2D(GL_FRAMEBUFFER, RigidBodyQuaternionAttachment2, GL_TEXTURE_2D, rigidBodyQuaternionsTex2, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, RigidBodyLinearMomentumAttachment, GL_TEXTURE_2D, rigidBodyLinearMomentumTex, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, RigidBodyAngularMomentumAttachment, GL_TEXTURE_2D, rigidBodyAngularMomentumTex, 0);
-
-	glFramebufferTexture1D(GL_FRAMEBUFFER, RigidBodyInitialParticlePositionsAttachment, GL_TEXTURE_1D, rigidBodyInitialParticlePositionsTex, 0);
 
 	// Clearing the values
 	float positionClear[4];
