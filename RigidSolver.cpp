@@ -200,6 +200,7 @@ bool RigidSolver::Activate(void) {
 	momentaFragShaderName = pathName + std::string("/resources/momenta.frag");
 	collisionVertShaderName = pathName + std::string("/resources/collision.vert");
 	collisionFragShaderName = pathName + std::string("/resources/collision.frag");
+	collisionGridGeomShaderName = pathName + std::string("/resources/collisionGrid.geom");
 	collisionGridVertShaderName = pathName + std::string("/resources/collisionGrid.vert");
 	collisionGridFragShaderName = pathName + std::string("/resources/collisionGrid.frag");
 
@@ -587,16 +588,21 @@ bool RigidSolver::collisionGridPass(void)
 
 	glm::vec3 gridSize = grid.getGridSize();
 	int sideLength = getParticleTextureSideLength();
-	glm::vec3 btmleftFrontCorner = grid.getBtmLeftFront();
+	glm::vec3 btmLeftFrontCorner = grid.getBtmLeftFront();
+	glm::vec3 topRightBackCorner = grid.getTopRightBack();
 	float voxelLength = grid.getVoxelLength();
 	int numberOfParticles = vaModel.getNumParticles();
 
 	if (sideLength == 0) return false;
+	float bias = 0.1f;
+	float zNear = bias;
+	float zFar = gridSize.z + bias;
 
-	projMX = glm::ortho(0.f, 1.f, 0.f, 1.f);
+	glm::mat4 projMatrix = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glPointSize(1.0f);
 
 	// Viewporting to output texture size
 	glViewport(0, 0, sideLength, sideLength);
@@ -610,9 +616,9 @@ bool RigidSolver::collisionGridPass(void)
 
 	// Unifroms
 	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(grid.getModelMatrix()));
-	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMX));
+	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMatrix));
 
-	glUniform3fv(shaderCollisionGrid.GetUniformLocation("btmLeftFrontCorner"), 1, glm::value_ptr(btmleftFrontCorner));
+	glUniform3fv(shaderCollisionGrid.GetUniformLocation("btmLeftFrontCorner"), 1, glm::value_ptr(btmLeftFrontCorner));
 	glUniform3fv(shaderCollisionGrid.GetUniformLocation("gridSize"), 1, glm::value_ptr(gridSize));
 
 	glUniform1f(shaderCollisionGrid.GetUniformLocation("voxelLength"), voxelLength);
@@ -628,15 +634,14 @@ bool RigidSolver::collisionGridPass(void)
 	GLfloat bkColor[4];
 	glGetFloatv(GL_COLOR_CLEAR_VALUE, bkColor);
 
-	vaVertex.Bind();
-
 	for (unsigned z = 0u; z < grid.getGridResolution().z; z++) {
+		
+		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_STENCIL_TEST);
 
 		// Setting z Coordinate to be able to determine voxel layer
-		glUniform1f(shaderCollisionGrid.GetUniformLocation("zCoord"), btmleftFrontCorner.z + z * voxelLength);
-
-		// Binding the current 2D z layer
-		glFramebufferTexture3D(GL_DRAW_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, z);
+		glUniform1i(shaderCollisionGrid.GetUniformLocation("z"), z);
+		glUniform1f(shaderCollisionGrid.GetUniformLocation("zCoord"), btmLeftFrontCorner.z + z * voxelLength);
 
 		glClearColor(0, 0, 0, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -644,7 +649,10 @@ bool RigidSolver::collisionGridPass(void)
 		//=== 1 PASS
 		glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
 		glDepthFunc(GL_LESS);
+
+		vaVertex.Bind();
 		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+		vaVertex.Release();
 
 		//=== 2 PASS
 		glColorMask(GL_TRUE, GL_FALSE, GL_TRUE, GL_TRUE);
@@ -654,17 +662,25 @@ bool RigidSolver::collisionGridPass(void)
 		glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
 		glClear(GL_STENCIL_BUFFER_BIT);
 
+		vaVertex.Bind();
 		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+		vaVertex.Release();
 
 		//=== 3 PASS
 		glColorMask(GL_TRUE, GL_TRUE, GL_FALSE, GL_TRUE);
 		glClear(GL_STENCIL_BUFFER_BIT);
+
+		vaVertex.Bind();
 		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+		vaVertex.Release();
 
 		//=== 4 PASS
 		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
 		glClear(GL_STENCIL_BUFFER_BIT);
+
+		vaVertex.Bind();
 		glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * numberOfParticles);
+		vaVertex.Release();
 	}
 
 	vaVertex.Release();
@@ -709,7 +725,7 @@ bool RigidSolver::collisionPass() {
 	shaderCollision.Bind();
 
 	int particleTextureEdgeLength = getParticleTextureSideLength();
-	projMX = glm::ortho(0, particleTextureEdgeLength, 0, particleTextureEdgeLength);
+	// projMX = glm::ortho(0, particleTextureEdgeLength, 0, particleTextureEdgeLength);
 
 	// Textures
 	glActiveTexture(GL_TEXTURE0);
@@ -1112,7 +1128,7 @@ bool RigidSolver::reloadShaders(void)
 	shaderMomentaCalculation.CreateProgramFromFile(momentaVertShaderName.c_str(), momentaFragShaderName.c_str());
 	shaderParticleValues.CreateProgramFromFile(particleValuesVertShaderName.c_str(), particleValuesFragShaderName.c_str());
 	shaderCollision.CreateProgramFromFile(collisionVertShaderName.c_str(), collisionFragShaderName.c_str());
-	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridFragShaderName.c_str());
+	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridGeomShaderName.c_str() ,collisionGridFragShaderName.c_str());
 	shaderSolver.CreateProgramFromFile(solverVertShaderName.c_str(), solverFragShaderName.c_str());
 	
 	// The shaders which are used for depth peeling - for code development only
@@ -1179,8 +1195,9 @@ bool RigidSolver::updateGrid() {
 	glm::ivec3 gridDimensions = grid.getGridResolution();
 
 	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16I, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
-	glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16UI, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+	glFramebufferTexture(GL_FRAMEBUFFER, GridIndiceAttachment, gridTex, 0);
+	// glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
 
 	glBindTexture(GL_TEXTURE_3D, 0);
 

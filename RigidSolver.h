@@ -90,7 +90,7 @@ private:
 	std::string beautyVertShaderName, beautyFragShaderName;
 	std::string momentaVertShaderName, momentaFragShaderName;
 	std::string collisionVertShaderName, collisionFragShaderName;
-	std::string collisionGridVertShaderName, collisionGridFragShaderName;
+	std::string collisionGridVertShaderName, collisionGridFragShaderName, collisionGridGeomShaderName;
 	std::string solverVertShaderName, solverFragShaderName;
 
 	// Transformations
