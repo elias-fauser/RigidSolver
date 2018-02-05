@@ -119,7 +119,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 	for (int i = 0; i < NUM_DEPTH_PEEL_PASSES; i++) {
 
-		glBindFramebuffer(GL_FRAMEBUFFER, depthFBOs[i]);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, depthFBOs[i]);
 
 		// All depth values since they will be discarded in the shader
 		glEnable(GL_DEPTH_TEST);
@@ -139,12 +139,14 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 		// First depth map just write it
 		if (i == 0) {
-			glDisable(GL_DEPTH_TEST);
+			// glDisable(GL_DEPTH_TEST);
 			glUniform1i(peelingShader.GetUniformLocation("enabled"), 0);
 
 		}
 		else {
-			glEnable(GL_DEPTH_TEST);
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, depthFBOs[i - 1]);
+
+			// glEnable(GL_DEPTH_TEST);
 			glUniform1i(peelingShader.GetUniformLocation("enabled"), 1);
 
 			// Depth unit 0 - The one that is read from
