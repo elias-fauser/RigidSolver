@@ -2,7 +2,7 @@
 
 #define M_PI  3.14159265
 
-layout(location=0) out vec3 particleForce;
+layout(location=0) out vec3 outParticleForce;
 layout(pixel_center_integer) in vec4 gl_FragCoord;
 
 // Uniforms
@@ -55,32 +55,35 @@ void main() {
 	
 	// Retrieve particle coordinates from current render position
 	ivec2 particleCoords = ivec2(gl_FragCoord.xy);
-	int particleID = particleCoords.y * particleTextureEdgeLength + particleCoords.x;
-	int rigidBodyID_i = int(particleID / particlesPerModel);
+	uint particleID = uint(particleCoords.y * particleTextureEdgeLength + particleCoords.x);
+	uint rigidBodyID_i = uint(particleID / uint(particlesPerModel));
 
-	vec3 rigidBodyPosition_i = texelFetch(rigidBodyPositions, idxTo2DRigidBodyCoords(rigidBodyID_i), 0).xyz;
+	// vec3 rigidBodyPosition_i = texelFetch(rigidBodyPositions, idxTo2DRigidBodyCoords(rigidBodyID_i), 0).xyz;
 	vec3 particlePosition_i = texelFetch(particlePositions, particleCoords, 0).xyz;
 	vec3 particleVelocity_i = texelFetch(particleVelocities, particleCoords, 0).xyz;
-	vec3 absolutePosition_i = rigidBodyPosition_i + particlePosition_i;
+	// vec3 paticleWorldPosition_i = rigidBodyPosition_i + particlePosition_i;
 
-	ivec3 voxelIndex = ivec3((absolutePosition_i - btmLeftFrontCorner) / voxelLength);
+	ivec3 voxelIndex = ivec3((particlePosition_i - btmLeftFrontCorner) / voxelLength);
 	
-	// Particle Force - Always apply gravity
+	// Particle Force
 	vec3 particleForce = vec3(0.f);
 	vec3 forceSpring = vec3(0.f);
 	vec3 forceDamp = vec3(0.f);
 	vec3 forceTangential = vec3(0.f);
 
+	// Always apply gravity
 	particleForce += vec3(0.f, -gravity, 0.f);
 
-	// Determine floor collisions
-	if (absolutePosition_i.y <= 0.f){
+	outParticleForce = particleForce;
 
-		vec3 normalizedRelativePosition = vec3(0.f, -absolutePosition_i.y, 0.f); // Distance beneath the floor
+	// Determine floor collisions
+	if (particlePosition_i.y < btmLeftFrontCorner.y){
+
+		vec3 normalizedRelativePosition = vec3(0.f, -particlePosition_i.y, 0.f); // Distance beneath the floor
 		normalizedRelativePosition /= length(normalizedRelativePosition);
 
 		// Calculate repulsive forces
-		forceSpring = -1.f * springCoefficient * (dampingCoefficient + absolutePosition_i.y) * normalizedRelativePosition;
+		forceSpring = -1.f * springCoefficient * (dampingCoefficient + particlePosition_i.y) * normalizedRelativePosition;
 		forceDamp = particleDiameter * - particleVelocity_i; // Relative velocity of particle to floor is inversed velocity
 		forceTangential = springCoefficient * (- particleVelocity_i - (-particleVelocity_i * normalizedRelativePosition) * normalizedRelativePosition);
 
@@ -94,21 +97,24 @@ void main() {
 				
 				// Look up particle indices
 				uvec4 particleIndices = texelFetch(collisionGrid, voxelIndex + ivec3(i, j, k), 0);
+				
+				// Subtract off the offset of one
+				particleIndices -= uvec4(1);
 
 				for (int idx = 0; idx < 4; idx++){
 			
-					int particleIdx = int(particleIndices[idx]);
+					uint particleIdx = particleIndices[idx];
 
-					// Don't test on itself
-					if (particleIdx == particleID){
+					// Don't test on itself or on an empty id
+					if (particleIdx == particleID || particleIdx == 0u){
 						continue;
 					}
 
 					// Retrieve positions
-					int rigidBodyID_j = particleIdx / particlesPerModel;
-					vec3 rigidBodyPosition_j = texelFetch(rigidBodyPositions, idxTo2DRigidBodyCoords(rigidBodyID_j), 0).xyz;
-					vec3 particlePosition_j = rigidBodyPosition_j + texelFetch(particlePositions, idxTo2DParticleCoords(particleIdx), 0).xyz;
-					vec3 particleVelocity_j = texelFetch(particleVelocities, idxTo2DParticleCoords(particleIdx), 0).xyz;
+					// int rigidBodyID_j = particleIdx / particlesPerModel;
+					// vec3 rigidBodyPosition_j = texelFetch(rigidBodyPositions, idxTo2DRigidBodyCoords(rigidBodyID_j), 0).xyz;
+					vec3 particlePosition_j = texelFetch(particlePositions, idxTo2DParticleCoords(int(particleIdx)), 0).xyz;
+					vec3 particleVelocity_j = texelFetch(particleVelocities, idxTo2DParticleCoords(int(particleIdx)), 0).xyz;
 
 					// Collision
 					if (collision(particlePosition_i, particlePosition_j, particleDiameter)){
@@ -129,5 +135,5 @@ void main() {
 	}}}
 
 	// Output to force texture
-	particleForce = particleForce;
+	outParticleForce = particleForce;
 }
