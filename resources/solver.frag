@@ -68,6 +68,7 @@ void main() {
 	// Calculate values
 	// ------------------------------------------------------------
 
+	mat3 quaternionRotation = quaternion2rotation(rigidQuaternion);
 	mat3 inertiaInverse_t = quaternionRotation * invIntertiaTensor * transpose(quaternionRotation);
 	vec3 angularVelocity =  inertiaInverse_t * rigidAngularMomentum;
 
@@ -77,6 +78,8 @@ void main() {
 	vec4 dq = vec4(cos(theta / 2.0), a * sin(theta / 2.0));
 
 	rigidBodyPosition = rigidPosition + rigidLinearMomentum / mass;
-	rigidBodyQuaternion = cross(dq, rigidQuaternion);
+
+	// FIXME: Is this calculation right?
+	rigidBodyQuaternion = dot(dq.x, rigidQuaternion.x) + cross(dq.yzw, rigidQuaternion.yzw);
 	
 }
