@@ -602,7 +602,9 @@ bool RigidSolver::collisionGridPass(void)
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glPointSize(1.0f);
+
+	// glEnable(GL_PROGRAM_POINT_SIZE);
+	// glPointSize(5.0f);
 
 	// Viewporting to output texture size
 	glViewport(0, 0, sideLength, sideLength);
@@ -612,7 +614,7 @@ bool RigidSolver::collisionGridPass(void)
 	// Textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, particlePositionsTex);
-	glUniform1i(shaderCollisionGrid.GetUniformLocation("particlePostions"), 0);
+	glUniform1i(shaderCollisionGrid.GetUniformLocation("particlePositions"), 0);
 
 	// Unifroms
 	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(grid.getModelMatrix()));
@@ -626,10 +628,6 @@ bool RigidSolver::collisionGridPass(void)
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("particleTextureEdgeLength"), sideLength);
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
-
-	// Define outputs
-	GLuint attachments = { GridIndiceAttachment };
-	glDrawBuffers(1, &attachments);
 
 	GLfloat bkColor[4];
 	glGetFloatv(GL_COLOR_CLEAR_VALUE, bkColor);
@@ -645,6 +643,10 @@ bool RigidSolver::collisionGridPass(void)
 
 		glClearColor(0, 0, 0, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		// Define outputs
+		GLuint attachments = { GridIndiceAttachment };
+		glDrawBuffers(1, &attachments);
 
 		//=== 1 PASS
 		glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -892,7 +894,7 @@ bool RigidSolver::beautyPass(void) {
 	// Set up the proj Matrices
 	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
 
-	/* ------------------- TEST -----------
+	// /* ------------------- TEST -----------
 	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
 	glm::vec3 gridSize = grid.getGridSize();
 	glm::ivec3 gridResolution = grid.getGridResolution();
@@ -905,8 +907,9 @@ bool RigidSolver::beautyPass(void) {
 	float zNear = bias;
 	float zFar = bias + gridSize.z;
 
-	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
-	viewMX = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	// glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
+	// viewMX = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	viewMX = glm::mat4(1.f);
 	projMX = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
 
 	// Scale the model to fit the grid (so we use the full resolution)
@@ -918,7 +921,7 @@ bool RigidSolver::beautyPass(void) {
 	windowHeight = gridResolution.y;
 
 	// --------------------------------------------------------------
-	*/
+	// */
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1177,6 +1180,17 @@ bool RigidSolver::updateParticles() {
 bool RigidSolver::updateGrid() {
 	// Must be done on init or when voxel size changes
 
+	glm::ivec3 gridDimensions = grid.getGridResolution();
+
+
+	// --------------------------------------------------
+	//  Depth Texture - Needed for the collision grid indice assignment
+	// --------------------------------------------------   
+
+	GLuint gridDepthTex;
+	createFBOTexture(gridDepthTex, GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT, GL_NEAREST, gridDimensions.x, gridDimensions.y, NULL);
+
+
 	// --------------------------------------------------
 	//  Grid Texture
 	// --------------------------------------------------   
@@ -1188,14 +1202,15 @@ bool RigidSolver::updateGrid() {
 	// Set the wrap and interpolation parameter
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	// Init empty image (to currently bound FBO)
-	glm::ivec3 gridDimensions = grid.getGridResolution();
-
 	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16UI, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+	
+	
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gridDepthTex, 0);
 	glFramebufferTexture(GL_FRAMEBUFFER, GridIndiceAttachment, gridTex, 0);
 	// glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
 
@@ -1395,6 +1410,11 @@ bool RigidSolver::checkFBOStatus(std::string fboName) {
 	}
 	case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: {
 		fprintf(stderr, "FBO '%s': number of samples or the value for ... does not match.\n", fboName.c_str());
+		break;
+	}
+
+	case 36264: {
+		fprintf(stderr, "FBO '%s': Incomplete Layer targets.\n", fboName.c_str());
 		break;
 	}
 	}

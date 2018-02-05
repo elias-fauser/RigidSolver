@@ -189,6 +189,7 @@
     <None Include="resources\collision.frag" />
     <None Include="resources\collision.vert" />
     <None Include="resources\collisionGrid.frag" />
+    <None Include="resources\collisionGrid.geom" />
     <None Include="resources\collisionGrid.vert" />
     <None Include="resources\common.fncs" />
     <None Include="resources\depthPeeling.frag" />
@@ -199,6 +200,8 @@
     <None Include="resources\momenta.vert" />
     <None Include="resources\particleValues.frag" />
     <None Include="resources\particleValues.vert" />
+    <None Include="resources\solver.frag" />
+    <None Include="resources\solver.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

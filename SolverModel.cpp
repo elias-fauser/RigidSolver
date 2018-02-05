@@ -55,8 +55,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	float zFar = gridSize.z + bias;
 
 	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
-	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
-	glm::mat4 viewMatrix = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	// glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
+	// glm::mat4 viewMatrix = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	glm::mat4 viewMatrix = glm::mat4(1.f);
 	glm::mat4 projMatrix = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
 	
 	// Scale the model to fit the grid (so we use the full resolution)
