@@ -3,7 +3,6 @@
 // Outputs
 layout(location = 0) out uvec4 gridOut;
 
-uniform int z;
 uniform float voxelLength;
 uniform float zCoord;
 
@@ -17,8 +16,11 @@ void main() {
 
 	// Only considering particles which are in the current z layer
 	if (particlePosition.z >= zCoord && particlePosition.z < zCoord + voxelLength){
+
+		// Adding one to the ids so that idx=0 is the null index
+		int incrParticleID = particleID + 1;
 		// Write to RGBA 
-		gridOut = uvec4(particleID, particleID, particleID, particleID); // uvec4(particleID);
+		gridOut = uvec4(incrParticleID, incrParticleID, incrParticleID, incrParticleID); // uvec4(particleID);
 	}
 	// else discard;
 }
