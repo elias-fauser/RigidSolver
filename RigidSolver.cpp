@@ -250,6 +250,41 @@ bool RigidSolver::Activate(void) {
 }
 
 bool RigidSolver::Deactivate(void) {
+	// Detach Shaders
+	shaderBeauty.RemoveAllShaders();
+	shaderMomentaCalculation.RemoveAllShaders();
+	shaderParticleValues.RemoveAllShaders();
+	shaderCollision.RemoveAllShaders();
+	shaderCollisionGrid.RemoveAllShaders();
+	shaderSolver.RemoveAllShaders();
+
+	// Delete VertexArrays
+	vaPlane.Delete();
+	vaModel.Delete();
+	vaQuad.Delete();
+	vaVertex.Delete();
+
+	// Delete Textures
+	glDeleteTextures(1, &beautyDepthTex);
+	glDeleteTextures(1, &gridTex);
+	glDeleteTextures(1, &initialParticlePositionsTex);
+	glDeleteTextures(1, &rigidBodyPositionsTex1);
+	glDeleteTextures(1, &rigidBodyPositionsTex2);
+	glDeleteTextures(1, &rigidBodyQuaternionsTex1);
+	glDeleteTextures(1, &rigidBodyQuaternionsTex2);
+	glDeleteTextures(1, &rigidBodyLinearMomentumTex);
+	glDeleteTextures(1, &rigidBodyAngularMomentumTex);
+	glDeleteTextures(1, &particlePositionsTex);
+	glDeleteTextures(1, &particleVelocityTex);
+	glDeleteTextures(1, &particleRelativePositionTex);
+	glDeleteTextures(1, &particleForcesTex);
+
+	// Delete Framebuffers
+	glDeleteFramebuffers(1, &rigidBodyFBO);
+	glDeleteFramebuffers(1, &particlesFBO);
+	glDeleteFramebuffers(1, &gridFBO);
+
+	glDisable(GL_DEPTH_TEST);
     return true;
 }
 
