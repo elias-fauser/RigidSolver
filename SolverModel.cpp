@@ -39,7 +39,6 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	//  Determine grid attributes and setup
 	// -------------------------------------------------- 
 
-	GLuint colorTextures[NUM_DEPTH_PEEL_PASSES];
 	GLuint depthTextures[NUM_DEPTH_PEEL_PASSES];
 	GLuint depthFBOs[NUM_DEPTH_PEEL_PASSES];
 
@@ -55,15 +54,15 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	float zFar = gridSize.z + bias;
 
 	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
-	// glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
-	// glm::mat4 viewMatrix = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
-	glm::mat4 viewMatrix = glm::mat4(1.f);
+	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
+	glm::mat4 viewMatrix = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	// glm::mat4 viewMatrix = glm::mat4(1.f);
 	glm::mat4 projMatrix = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
 	
 	// Scale the model to fit the grid (so we use the full resolution)
 	glm::mat4 modelMatrix = grid->getModelMatrix();
-	float scaling = std::min(std::min(gridSize.x / modelSize.x, gridSize.y / modelSize.y), gridSize.z / modelSize.z);
-	// float scaling = 1.f;
+	// float scaling = std::min(std::min(gridSize.x / modelSize.x, gridSize.y / modelSize.y), gridSize.z / modelSize.z);
+	float scaling = 1.f;
 	modelMatrix = glm::scale(modelMatrix, scaling, scaling, scaling);
 	
 	// --------------------------------------------------
@@ -72,9 +71,6 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 	glGenFramebuffers(NUM_DEPTH_PEEL_PASSES, depthFBOs);
 
-	// Add one color attachment so that the buffer is not incomplete
-	glGenTextures(NUM_DEPTH_PEEL_PASSES, colorTextures);
-
 	// Allocate number of depth textures
 	glGenTextures(NUM_DEPTH_PEEL_PASSES, depthTextures);
 
@@ -82,17 +78,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 		
 		glBindFramebuffer(GL_FRAMEBUFFER, depthFBOs[i]);
 
-		// Color texture
-		glBindTexture(GL_TEXTURE_2D, colorTextures[i]);
-
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gridResolution.x, gridResolution.y, 0, GL_RGBA, GL_FLOAT, NULL);
-
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTextures[i], 0);
+		// Disable any color attachment
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
 
 		// Depth texture
 		glBindTexture(GL_TEXTURE_2D, depthTextures[i]);
@@ -117,84 +105,44 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	//  Rendering the depth peels
 	// -------------------------------------------------- 
 
+	// All depth values since they will be discarded in the shader
+	glEnable(GL_DEPTH_TEST);
+	glClearDepth(1.f);
+	glDepthFunc(GL_ALWAYS);
+	glDepthMask(true);
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
 	for (int i = 0; i < NUM_DEPTH_PEEL_PASSES; i++) {
 
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, depthFBOs[i]);
 
-		// All depth values since they will be discarded in the shader
-		glEnable(GL_DEPTH_TEST);
-		glClearDepth(1.f);
-		glDepthFunc(GL_ALWAYS);
-		glDepthMask(true);
-
-		// Render the depth passes
 		peelingShader.Bind();
 
-		GLuint attachments[] = { GL_COLOR_ATTACHMENT0 };
-		glDrawBuffers(1, attachments);
-
-		glUniformMatrix4fv(peelingShader.GetUniformLocation("projMX"), 0, false, glm::value_ptr(projMatrix));
-		glUniformMatrix4fv(peelingShader.GetUniformLocation("viewMX"), 0, false, glm::value_ptr(viewMatrix));
-		glUniformMatrix4fv(peelingShader.GetUniformLocation("modelMX"), 0, false, glm::value_ptr(modelMatrix));
-
-		// First depth map just write it
-		if (i == 0) {
-			// glDisable(GL_DEPTH_TEST);
-			glUniform1i(peelingShader.GetUniformLocation("enabled"), 0);
-
-		}
+		if (i == 0) glUniform1i(peelingShader.GetUniformLocation("enabled"), 0);
 		else {
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, depthFBOs[i - 1]);
-
-			// glEnable(GL_DEPTH_TEST);
 			glUniform1i(peelingShader.GetUniformLocation("enabled"), 1);
 
-			// Depth unit 0 - The one that is read from
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, depthTextures[i-1]);
+			glBindTexture(GL_TEXTURE_2D, depthTextures[i - 1]);
 			glUniform1i(peelingShader.GetUniformLocation("lastDepth"), 0);
-
 		}
+
+		glUniformMatrix4fv(peelingShader.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMatrix));
+		glUniformMatrix4fv(peelingShader.GetUniformLocation("viewMX"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(peelingShader.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 
 		this->Bind();
 
-		glViewport(0, 0, gridResolution.x, gridResolution.y);
-
-		// Clear the write depth texture once before rendering
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		glDrawElements(GL_TRIANGLES, GetNumVertices() * 3, GL_UNSIGNED_INT, nullptr);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		glDrawElements(GL_TRIANGLES, this->GetNumVertices() * 3, GL_UNSIGNED_INT, nullptr);
 
 		this->Release();
+
 		peelingShader.Release();
 
 		if (DEBUGGING) {
 			std::string fileNameColor = RigidSolver::debugDirectory + std::string("/depthPeelingPass_color_") + std::to_string(i) + std::string(".bmp");
 			int save_result;
-
-			// ---- SAVING COLOR IMAGE -------
-			unsigned char * colorData;
-			colorData = new unsigned char[gridResolution.x * gridResolution.y * 4];
-			
-			// glBindTexture(GL_TEXTURE_2D, colorTextures[i]);
-			// glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, colorData);
-			// glBindTexture(GL_TEXTURE_2D, 0);
-
-			glReadBuffer(GL_COLOR_ATTACHMENT0);
-			glReadPixels(0, 0, gridResolution.x, gridResolution.y, GL_RGBA, GL_UNSIGNED_BYTE, colorData);
-			glReadBuffer(GL_NONE);
-
-			save_result = SOIL_save_image
-			(
-				fileNameColor.c_str(),
-				SOIL_SAVE_TYPE_BMP,
-				gridResolution.x, gridResolution.y, 4,
-				colorData
-			);
-
-			if (save_result == 0) printf("SOIL loading error: '%s'\n", SOIL_last_result());
-
-			delete[] colorData;
 
 			// ---- SAVING DEPTH IMAGE -------
 			std::string fileNameDepth = RigidSolver::debugDirectory + std::string("/depthPeelingPass_depth_") + std::to_string(i) + std::string(".bmp");
@@ -228,8 +176,10 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 		}
 
 	}
-
-	glDepthFunc(GL_LEQUAL);
+	
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glDepthFunc(GL_LESS);
 
 	// --------------------------------------------------
 	//  Create a 3D texture for the output
@@ -410,7 +360,6 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 	// Delete texture
 	glDeleteTextures(1, &gridTex);
-	glDeleteTextures(NUM_DEPTH_PEEL_PASSES, colorTextures);
 	glDeleteTextures(NUM_DEPTH_PEEL_PASSES, depthTextures);
 
 	// Delete FBO and unbind
