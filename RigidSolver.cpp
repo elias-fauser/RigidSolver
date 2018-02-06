@@ -1319,8 +1319,20 @@ bool RigidSolver::updateGrid() {
 	// --------------------------------------------------   
 
 	GLuint gridDepthTex;
-	createFBOTexture(gridDepthTex, GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT, GL_NEAREST, gridDimensions.x, gridDimensions.y, NULL);
+	glGenTextures(1, &gridDepthTex);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, gridTex);
 
+	// Set the wrap and interpolation parameter
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, gridDepthTex, 0);
 
 	// --------------------------------------------------
 	//  Grid Texture
@@ -1340,8 +1352,6 @@ bool RigidSolver::updateGrid() {
 	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16UI, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
 	
-	
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, gridDepthTex, 0);
 	glFramebufferTexture(GL_FRAMEBUFFER, GridIndiceAttachment, gridTex, 0);
 	// glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
 
