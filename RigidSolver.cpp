@@ -937,7 +937,7 @@ bool RigidSolver::solverPass(void)
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex1);
-		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyVelocities"), 1);
+		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyQuaternions"), 1);
 
 		attachments[0] = RigidBodyPositionAttachment2;
 		attachments[1] = RigidBodyQuaternionAttachment2;
@@ -950,7 +950,7 @@ bool RigidSolver::solverPass(void)
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex2);
-		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyVelocities"), 1);
+		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyQuaternions"), 1);
 
 		attachments[0] = RigidBodyPositionAttachment1;
 		attachments[1] = RigidBodyQuaternionAttachment1;
@@ -959,7 +959,12 @@ bool RigidSolver::solverPass(void)
 
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, rigidBodyLinearMomentumTex);
-	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyVelocities"), 1);
+	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyLinearMomentums"), 2);
+
+
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, rigidBodyAngularMomentumTex);
+	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyAngularMomentums"), 2);
 
 	// Uniforms
 	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
@@ -984,16 +989,43 @@ bool RigidSolver::solverPass(void)
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+
+	if (DEBUGGING) {
+
+		int size = rigidBodyTextureLength * rigidBodyTextureLength;
+
+		float * rigidPositions;
+		float * rigidQuaternions;
+
+		rigidPositions = new float[size * 3];
+		rigidQuaternions = new float[size * 4];
+
+		if (texSwitch == false) glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex2);
+		else glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex1);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, rigidPositions);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/solver_rigidBodyPositions.txt"), rigidPositions, size * 3, 3);
+
+		if (texSwitch == false) glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex2);
+		else glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex1);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, rigidQuaternions);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/solver_rigidBodyQuaternions.txt"), rigidQuaternions, size * 4, 4);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		delete[] rigidPositions;
+		delete[] rigidQuaternions;
+
+	}
 	return false;
 }
 
 
 bool RigidSolver::beautyPass(void) {
-	
+
 	// Set up the proj Matrices
 	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
 
-	// /* ------------------- TEST -----------
+	/* ------------------- TEST -----------
 	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
 	glm::vec3 gridSize = grid.getGridSize();
 	glm::ivec3 gridResolution = grid.getGridResolution();
