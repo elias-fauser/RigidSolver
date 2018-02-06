@@ -12,6 +12,7 @@ Implementation:
 * The Grid must be updated when the ParticleSize is changed
 * How to handle spawning if time is too low and objects intersect (Forces will be great)
 * Normalize the outputs to textures
-* Scaling for depth peeling must be reverted on the particles
-* Check the layout position qualifiers for out
-* Inertia Tenesor needs to be recalculated
+
+Abgabe:
+* Hi Res Pictures
+* Disable DEBUGGING!
