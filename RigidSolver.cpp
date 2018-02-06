@@ -1554,7 +1554,7 @@ bool RigidSolver::checkFBOStatus(std::string fboName) {
 		break;
 	}
 
-	case 36264: {
+	case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS: {
 		fprintf(stderr, "FBO '%s': Incomplete Layer targets.\n", fboName.c_str());
 		break;
 	}
