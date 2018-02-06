@@ -29,20 +29,31 @@ ivec2 rigidBodyIdx2TextureCoords(int idx) {
 }
 
 mat3 quaternion2rotation(vec4 q){
-	return mat3(
-		1.0 - 2.0 * pow(q.z, 2) - 2.0 * pow(q.w, 2),
-		2.0 * q.y * q.z - 2.0 * q.x * q.w,
-		2.0 * q.y * q.z + 2.0 * q.x * q.z,
-		2.0 * q.y * q.z + 2.0 * q.x * q.w,
-		1.0 - 2.0 * pow(q.y, 2) - 2.0 * pow(q.w, 2),
-		2.0 * q.z * q.w - 2.0 * q.x * q.y,
-		2.0 * q.y * q.w - 2.0 * q.x * q.z,
-		2.0 * q.z * q.w + 2.0 * q.x * q.y,
-		1.0 - 2.0 * pow(q.y, 2) - 2.0 * pow(q.z, 2) 
-		);
-}
 
+	mat3 rotation;
+
+	rotation[0] = vec3(
+		1.0 - 2.0 * pow(q.z, 2) - 2.0 * pow(q.w, 2),
+		2.0 * q.y * q.z + 2.0 * q.x * q.w,
+		2.0 * q.y * q.w - 2.0 * q.x * q.z
+	);
+
+	rotation[1] = vec3(
+		2.0 * q.y * q.z - 2.0 * q.x * q.w,
+		1.0 - 2.0 * pow(q.y, 2) - 2.0 * pow(q.w, 2),
+		2.0 * q.z * q.w + 2.0 * q.x * q.y
+	);
+
+	rotation[2] = vec3(
+		2.0 * q.y * q.z + 2.0 * q.x * q.z,
+		2.0 * q.z * q.w - 2.0 * q.x * q.y,
+		1.0 - 2.0 * pow(q.y, 2) - 2.0 * pow(q.z, 2) 
+	);
+
+	return rotation;
+}
 void main() {    
+
 	
 	texCoords = in_texCoords;
 	instanceID = gl_InstanceID;
@@ -56,10 +67,12 @@ void main() {
 		vec4 quaternion = texelFetch(rigidBodyQuaternions, positionCoords, 0);
 
 		mat3 rotation = quaternion2rotation(quaternion);
-		// gl_Position =  vec4(rotation * position.xyz, 1.0);
 
-		// TODO: Apply quaternion here
-		gl_Position = projMX * viewMX * modelMX * (in_position + vec4(position));
+		// Rotate around CoM - because model is centered at origin with CoM
+		vec4 relativeRotated = vec4(rotation * (in_position / in_position.w).xyz, 1.0f);
+
+		// Move the CoM then apply view transformation
+		gl_Position = projMX * viewMX * modelMX * (in_position + position);
 	}
 
 	position = (gl_Position / gl_Position.w).xyz;
