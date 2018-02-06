@@ -23,7 +23,7 @@ SolverModel::SolverModel()
 
 SolverModel::~SolverModel()
 {
-	if (particlePositions) {
+	if (particlePositions != NULL) {
 		delete[] particlePositions;
 		particlePositions = NULL;
 	}
@@ -134,6 +134,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 		this->Bind();
 
 		glClear(GL_DEPTH_BUFFER_BIT);
+		glViewport(0.f, 0.f, gridResolution.x, gridResolution.y);
 		glDrawElements(GL_TRIANGLES, this->GetNumVertices() * 3, GL_UNSIGNED_INT, nullptr);
 
 		this->Release();

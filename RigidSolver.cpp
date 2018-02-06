@@ -959,26 +959,26 @@ bool RigidSolver::beautyPass(void) {
 	glm::vec3 modelSize = vaModel.getModelSize();
 	glm::vec3 btmLeftFrontCorner = grid.getBtmLeftFront();
 	glm::vec3 topRightBackCorner = grid.getTopRightBack();
-
+	
 	float bias = 0.001f;
 	float zNear = bias;
 	float zFar = bias + gridSize.z;
 
-	// glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
-	// viewMX = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
-	viewMX = glm::mat4(1.f);
-	projMX = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
+	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
+	glm::mat4 viewMX = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+	// glm::mat4 viewMX = glm::mat4(1.f);
+	glm::mat4 projMX = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
 
 	// Scale the model to fit the grid (so we use the full resolution)
 	glm::mat4 modelMatrix = grid.getModelMatrix();
 	float scaling = std::min(std::min(gridSize.x / modelSize.x, gridSize.y / modelSize.y), gridSize.z / modelSize.z);
 	modelMatrix = glm::scale(modelMatrix, scaling, scaling, scaling);
-
+	
 	windowWidth = gridResolution.x;
 	windowHeight = gridResolution.y;
 
 	// --------------------------------------------------------------
-	// */
+	*/
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
