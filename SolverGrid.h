@@ -33,7 +33,7 @@ private:
 	glm::vec3 emitterVelocity = glm::vec3(0.f, -1.f, 0.f);
 	glm::vec3 topRightBack = glm::vec3(.5f, .5f, .5f), btmLeftFront = glm::vec3(-.5f, -.5f, -.5f);
 
-	float voxelLength = .01f;
+	float voxelLength = .025f;
 	float sizeX, sizeY, sizeZ;
 
 	VertexArray vaBox, vaEmitter;
