@@ -877,11 +877,11 @@ bool RigidSolver::momentaPass(void)
 	// Activate the input textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, particleRelativePositionTex);
-	glUniform1i(shaderBeauty.GetUniformLocation("relativeParticlePositions"), 0);
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("relativeParticlePositions"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, particleForcesTex);
-	glUniform1i(shaderBeauty.GetUniformLocation("particleForces"), 1);
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particleForces"), 1);
 
 	// Update the particles and rigid body positions
 	vaVertex.Bind();
@@ -891,6 +891,32 @@ bool RigidSolver::momentaPass(void)
 	shaderMomentaCalculation.Release();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+	if (DEBUGGING) {
+
+		int size = rigidBodyTextureLength * rigidBodyTextureLength * 3;
+
+		float * linearMomenta;
+		float * angularMomenta;
+
+		linearMomenta = new float[size];
+		angularMomenta = new float[size];
+
+		glBindTexture(GL_TEXTURE_2D, rigidBodyLinearMomentumTex);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, linearMomenta);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/momenta_linearMomenta.txt"), linearMomenta, size, 3);
+
+		glBindTexture(GL_TEXTURE_2D, rigidBodyAngularMomentumTex);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, angularMomenta);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/momenta_angularMomenta.txt"), angularMomenta, size, 3);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		delete[] linearMomenta;
+		delete[] angularMomenta;
+
+	}
 
 	return false;
 }
