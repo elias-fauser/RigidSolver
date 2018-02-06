@@ -1087,7 +1087,7 @@ bool RigidSolver::beautyPass(void) {
 	glUniform3fv(shaderBeauty.GetUniformLocation("diffuse"), 1, glm::value_ptr(glm::vec3(.8f, .8f, .8f)));
 	glUniform3fv(shaderBeauty.GetUniformLocation("specular"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
 
-	glUniform1f(shaderBeauty.GetUniformLocation("k_amb"), 0.4f);
+	glUniform1f(shaderBeauty.GetUniformLocation("k_amb"), 0.2f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_diff"), 0.8f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_spec"), 1.0f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_exp"), 2.0f);
