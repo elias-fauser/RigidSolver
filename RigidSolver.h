@@ -31,7 +31,6 @@ public:
 	static bool saveFramebufferPNG(std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type);
 	static bool saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height);
 	template <class T> static bool saveArrayToTXT(std::string filename, T * array, int num, int chunkSize);
-
 	static void drawAbstractData(unsigned int width, unsigned int height, GLShader &shader);
 
 	// Public static vertex arrays
@@ -82,6 +81,8 @@ private:
 	APIVar<RigidSolver, IntVarPolicy> numRigidBodies;
 	APIVar<RigidSolver, FloatVarPolicy> gravity;
 	APIVar<RigidSolver, FloatVarPolicy> modelMass;
+	APIVar<RigidSolver, FloatVarPolicy> springCoefficient;
+	APIVar<RigidSolver, FloatVarPolicy> dampingCoefficient;
 	APIVar<RigidSolver, IntVarPolicy> spawnTime;
 
 	// Paths - needed for reloadShaders()

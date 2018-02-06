@@ -169,7 +169,17 @@ bool RigidSolver::Activate(void) {
 	modelMass.Set(this, "Mass");
 	modelMass.Register();
 	modelMass.SetMinMax(0.1, 100.0);
-	modelMass = 1.0f;
+	modelMass = 0.1f; // kg
+
+	springCoefficient.Set(this, "SpringCoefficient");
+	springCoefficient.Register();
+	springCoefficient.SetMinMax(0.01, 10);
+	springCoefficient = 1.f;
+
+	dampingCoefficient.Set(this, "dampCoefficient");
+	dampingCoefficient.Register();
+	dampingCoefficient.SetMinMax(0.01, 10);
+	dampingCoefficient = 1.f;
 
 	numRigidBodies.Set(this, "NumRigidBodies");
 	numRigidBodies.Register();
@@ -782,19 +792,23 @@ bool RigidSolver::collisionPass() {
 	if (texSwitch == false) {
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 3);
+		glUniform1i(shaderCollision.GetUniformLocation("rigidBodyPositions"), 3);
 
 	}
 	else {
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 3);
+		glUniform1i(shaderCollision.GetUniformLocation("rigidBodyPositions"), 3);
 	}
 
 	// Uniforms
 	glUniform1f(shaderCollision.GetUniformLocation("gravity"), gravity);
+	glUniform1f(shaderCollision.GetUniformLocation("mass"), modelMass);
+	glUniform1f(shaderCollision.GetUniformLocation("deltaT"), time_span.count() / 1000.f);
 	glUniform1f(shaderCollision.GetUniformLocation("voxelLength"), grid.getVoxelLength());
 	glUniform1f(shaderCollision.GetUniformLocation("particleDiameter"), particleSize);
+	glUniform1f(shaderCollision.GetUniformLocation("dampingCoefficient"), dampingCoefficient);
+	glUniform1f(shaderCollision.GetUniformLocation("sprintCoefficient"), springCoefficient);
 
 	glUniform1i(shaderCollision.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderCollision.GetUniformLocation("particleTextureEdgeLength"), particleTextureEdgeLength);

@@ -9,6 +9,8 @@ layout(pixel_center_integer) in vec4 gl_FragCoord;
 uniform float springCoefficient;
 uniform float dampingCoefficient;
 uniform float gravity;
+uniform float mass;
+uniform float deltaT; // time diff in second
 uniform float voxelLength;
 
 uniform float particleDiameter;
@@ -71,21 +73,20 @@ void main() {
 	vec3 forceDamp = vec3(0.f);
 	vec3 forceTangential = vec3(0.f);
 
-	// Always apply gravity
-	particleForce += vec3(0.f, -gravity, 0.f);
+	// Always apply gravity (To position so ground collisions are detected)
+	particleForce += vec3(0.f, -gravity * deltaT * mass, 0.f);
 
-	outParticleForce = particleForce;
-
-	// Determine floor collisions
+	// Determine floor collisions (considering applied forces)
 	if (particlePosition_i.y < btmLeftFrontCorner.y){
 
-		vec3 normalizedRelativePosition = vec3(0.f, -particlePosition_i.y, 0.f); // Distance beneath the floor
+		vec3 normalizedRelativePosition = -vec3(0.f, particlePosition_i.y - btmLeftFrontCorner.y, 0.f); // Distance beneath the floor
 		normalizedRelativePosition /= length(normalizedRelativePosition);
+		vec3 velocity_ij = -particleVelocity_i; // Velocity negativ with respect to floor
 
 		// Calculate repulsive forces
-		forceSpring = -1.f * springCoefficient * (dampingCoefficient + particlePosition_i.y) * normalizedRelativePosition;
-		forceDamp = particleDiameter * - particleVelocity_i; // Relative velocity of particle to floor is inversed velocity
-		forceTangential = springCoefficient * (- particleVelocity_i - (-particleVelocity_i * normalizedRelativePosition) * normalizedRelativePosition);
+		forceSpring = -1.f * (dampingCoefficient + particlePosition_i.y) * normalizedRelativePosition; // No spring efficient, full return force
+		forceDamp = particleDiameter * velocity_ij;
+		forceTangential = velocity_ij - (velocity_ij * normalizedRelativePosition) * normalizedRelativePosition;
 
 		particleForce += forceSpring + forceDamp + forceTangential;
 	}
@@ -133,6 +134,7 @@ void main() {
 					}
 				}
 	}}}
+	
 
 	// Output to force texture
 	outParticleForce = particleForce;
