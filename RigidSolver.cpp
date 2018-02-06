@@ -330,8 +330,9 @@ bool RigidSolver::Render(void) {
 
 	if (solverStatus && modelFiles.GetValue() != NULL) {
 		// Get current time and eventually spawn a new particle
-		time = std::time(0);
-		if (time - lastSpawn >= spawnTime && spawnedObjects <= numRigidBodies) {
+		time = std::chrono::high_resolution_clock::now();
+		time_span = time - lastSpawn;
+		if (time_span.count() * 1000  >= spawnTime && spawnedObjects <= numRigidBodies) {
 			spawnedObjects = std::max((int)(spawnedObjects + 1), MAX_NUMBER_OF_RIGID_BODIES);
 		}
 		lastSpawn = time;
@@ -576,12 +577,16 @@ bool RigidSolver::particleValuePass(void)
 	glDrawBuffers(3, attachments);
 
 	// Uniforms
+	glm::mat3 inverseInertia = glm::inverse(vaModel.getInertiaTensor());
+
 	glUniformMatrix4fv(shaderParticleValues.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMX));
-	glUniformMatrix3fv(shaderParticleValues.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(glm::inverse(vaModel.getInertiaTensor())));
+	glUniformMatrix3fv(shaderParticleValues.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(inverseInertia));
 	glUniform1i(shaderParticleValues.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderParticleValues.GetUniformLocation("particleTextureEdgeLength"), sideLength);
 	glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
 	glUniform1f(shaderParticleValues.GetUniformLocation("mass"), modelMass);
+	glUniform1f(shaderParticleValues.GetUniformLocation("gravity"), gravity);
+	glUniform1f(shaderParticleValues.GetUniformLocation("deltaT"), time_span.count() / 1000.f);
 
 	vaVertex.Bind();
 	drawAbstractData(sideLength, sideLength, shaderParticleValues);
@@ -854,7 +859,6 @@ bool RigidSolver::collisionPass() {
 
 bool RigidSolver::momentaPass(void)
 {
-
 	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
 
 	shaderMomentaCalculation.Bind();
@@ -937,11 +941,9 @@ bool RigidSolver::solverPass(void)
 	glUniform1i(shaderSolver.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 
 	glUniform1f(shaderSolver.GetUniformLocation("mass"), modelMass);
-	glUniform1f(shaderSolver.GetUniformLocation("deltaT"), time - lastSpawn); // FIXME: Is this really right?
+	glUniform1f(shaderSolver.GetUniformLocation("deltaT"), time_span.count() / 1000.f); // FIXME: Is this really right?
 
 	glUniformMatrix3fv(shaderSolver.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(glm::inverse(vaModel.getInertiaTensor())));
-
-
 
 	// Output textures
 	glDrawBuffers(2, attachments);
@@ -1176,7 +1178,7 @@ bool RigidSolver::resetSimulation(void)
 {
 	solverStatus = true;
 	spawnedObjects = 0;
-	lastSpawn = std::time(0);
+	lastSpawn = std::chrono::high_resolution_clock::now();
 
 	initSolverFBOs();
 
