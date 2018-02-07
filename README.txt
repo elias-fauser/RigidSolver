@@ -12,9 +12,13 @@ Further UI attributes:
 	* SpawnTime: The number of seconds between each spawn of a new rigid body
 	* Gravity: The gravity force
 	* Mass: The mass of a rigid body
+	* springCoefficient: The spring Coefficient used in the collision force calculation
+	* dampingCoefficient: The damping Coefficient used in the collision force calculation
 	* NumRigidBodies: The maximum number of rigid bodies which will be spawned
 	* ParticleSize: The diameter of a particle which corresponds to the voxelsize of the solver grid
 	* DrawParticles: Switch to enable drawing the particles -- NOT IMPLEMENTED --
+
+The view may be altered using the mouse.
 
 Implementation:
 ***************
