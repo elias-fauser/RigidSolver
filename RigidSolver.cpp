@@ -164,7 +164,7 @@ bool RigidSolver::Activate(void) {
 	spawnTime.Set(this, "SpawnTime(sec)");
 	spawnTime.Register();
 	spawnTime.SetMinMax(1.0, 300.0);
-	spawnTime = 5;
+	spawnTime = 1;
 
 	gravity.Set(this, "Gravity");
 	gravity.Register();
@@ -173,17 +173,17 @@ bool RigidSolver::Activate(void) {
 	modelMass.Set(this, "Mass");
 	modelMass.Register();
 	modelMass.SetMinMax(0.1, 100.0);
-	modelMass = 0.1f; // kg
+	modelMass = 1.f; // kg
 
 	springCoefficient.Set(this, "SpringCoefficient");
 	springCoefficient.Register();
 	springCoefficient.SetMinMax(0.01, 10);
-	springCoefficient = 1.f;
+	springCoefficient = .5f;
 
 	dampingCoefficient.Set(this, "dampCoefficient");
 	dampingCoefficient.Register();
 	dampingCoefficient.SetMinMax(0.01, 10);
-	dampingCoefficient = 1.f;
+	dampingCoefficient = .5f;
 
 	numRigidBodies.Set(this, "NumRigidBodies");
 	numRigidBodies.Register();
