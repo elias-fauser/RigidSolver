@@ -157,6 +157,10 @@ bool RigidSolver::Activate(void) {
 	solverStatus.Register();
 	solverStatus = false;
 
+	// Buttons
+	resetButton.Set(this, "Reset", &RigidSolver::resetSimulationTriggered);
+	resetButton.Register();
+
 	spawnTime.Set(this, "SpawnTime(sec)");
 	spawnTime.Register();
 	spawnTime.SetMinMax(1.0, 300.0);
@@ -1477,6 +1481,10 @@ void RigidSolver::particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var)
 	
 }
 
+void RigidSolver::resetSimulationTriggered(ButtonVar<RigidSolver> &button) {
+
+	resetSimulation();
+}
 
 // --------------------------------------------------
 //  HELPERS

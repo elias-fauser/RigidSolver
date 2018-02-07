@@ -72,6 +72,7 @@ private:
 
 	void fileChanged(FileEnumVar<RigidSolver> &var);
 	void particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var);
+	void resetSimulationTriggered(ButtonVar<RigidSolver> &button);
 
 	// API Vars
 	FileEnumVar<RigidSolver>  modelFiles;
@@ -85,6 +86,8 @@ private:
 	APIVar<RigidSolver, FloatVarPolicy> springCoefficient;
 	APIVar<RigidSolver, FloatVarPolicy> dampingCoefficient;
 	APIVar<RigidSolver, IntVarPolicy> spawnTime;
+	ButtonVar<RigidSolver> resetButton;
+
 
 	// Paths - needed for reloadShaders()
 	std::string commonFunctionsVertShaderName;
