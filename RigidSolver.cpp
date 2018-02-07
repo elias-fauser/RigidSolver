@@ -22,10 +22,10 @@
 // --------------------------------------------------
 
 const float PLANE_VERTICES[] = {
-	 .5f, 0.0f,  .5f, 1.0f,
-	 .5f, 0.0f, -.5f, 1.0f,
-	-.5f, 0.0f, -.5f, 1.0f,
-	-.5f, 0.0f,  .5f, 1.0f,
+	 .5f, -.5f,  .5f, 1.0f,
+	 .5f, -.5f, -.5f, 1.0f,
+	-.5f, -.5f, -.5f, 1.0f,
+	-.5f, -.5f,  .5f, 1.0f,
 };
 
 /*
@@ -157,10 +157,14 @@ bool RigidSolver::Activate(void) {
 	solverStatus.Register();
 	solverStatus = false;
 
+	// Buttons
+	resetButton.Set(this, "Reset", &RigidSolver::resetSimulationTriggered);
+	resetButton.Register();
+
 	spawnTime.Set(this, "SpawnTime(sec)");
 	spawnTime.Register();
 	spawnTime.SetMinMax(1.0, 300.0);
-	spawnTime = 5;
+	spawnTime = 1;
 
 	gravity.Set(this, "Gravity");
 	gravity.Register();
@@ -169,7 +173,17 @@ bool RigidSolver::Activate(void) {
 	modelMass.Set(this, "Mass");
 	modelMass.Register();
 	modelMass.SetMinMax(0.1, 100.0);
-	modelMass = 1.0f;
+	modelMass = 1.f; // kg
+
+	springCoefficient.Set(this, "SpringCoefficient");
+	springCoefficient.Register();
+	springCoefficient.SetMinMax(0.01, 10);
+	springCoefficient = .5f;
+
+	dampingCoefficient.Set(this, "dampCoefficient");
+	dampingCoefficient.Register();
+	dampingCoefficient.SetMinMax(0.01, 10);
+	dampingCoefficient = .5f;
 
 	numRigidBodies.Set(this, "NumRigidBodies");
 	numRigidBodies.Register();
@@ -203,6 +217,8 @@ bool RigidSolver::Activate(void) {
 	collisionGridGeomShaderName = pathName + std::string("/resources/collisionGrid.geom");
 	collisionGridVertShaderName = pathName + std::string("/resources/collisionGrid.vert");
 	collisionGridFragShaderName = pathName + std::string("/resources/collisionGrid.frag");
+	solverVertShaderName = pathName + std::string("/resources/solver.vert");
+	solverFragShaderName = pathName + std::string("/resources/solver.frag");
 
 	// Setup Quad geometry
 	float quadVertices[] = { 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f };
@@ -226,11 +242,11 @@ bool RigidSolver::Activate(void) {
 	//  Init
 	// --------------------------------------------------  
 
-	initSolverFBOs();
-
-	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+	glClearColor(0.f, 0.f, 0.f, 1.0f);
 	glClearDepth(1.0);
 	glEnable(GL_DEPTH_TEST);
+
+	resetSimulation();
 
 	// --------------------------------------------------
 	//  Query opengl limits just to be sure
@@ -248,6 +264,41 @@ bool RigidSolver::Activate(void) {
 }
 
 bool RigidSolver::Deactivate(void) {
+	// Detach Shaders
+	shaderBeauty.RemoveAllShaders();
+	shaderMomentaCalculation.RemoveAllShaders();
+	shaderParticleValues.RemoveAllShaders();
+	shaderCollision.RemoveAllShaders();
+	shaderCollisionGrid.RemoveAllShaders();
+	shaderSolver.RemoveAllShaders();
+
+	// Delete VertexArrays
+	vaPlane.Delete();
+	vaModel.Delete();
+	vaQuad.Delete();
+	vaVertex.Delete();
+
+	// Delete Textures
+	glDeleteTextures(1, &beautyDepthTex);
+	glDeleteTextures(1, &gridTex);
+	glDeleteTextures(1, &initialParticlePositionsTex);
+	glDeleteTextures(1, &rigidBodyPositionsTex1);
+	glDeleteTextures(1, &rigidBodyPositionsTex2);
+	glDeleteTextures(1, &rigidBodyQuaternionsTex1);
+	glDeleteTextures(1, &rigidBodyQuaternionsTex2);
+	glDeleteTextures(1, &rigidBodyLinearMomentumTex);
+	glDeleteTextures(1, &rigidBodyAngularMomentumTex);
+	glDeleteTextures(1, &particlePositionsTex);
+	glDeleteTextures(1, &particleVelocityTex);
+	glDeleteTextures(1, &particleRelativePositionTex);
+	glDeleteTextures(1, &particleForcesTex);
+
+	// Delete Framebuffers
+	glDeleteFramebuffers(1, &rigidBodyFBO);
+	glDeleteFramebuffers(1, &particlesFBO);
+	glDeleteFramebuffers(1, &gridFBO);
+
+	glDisable(GL_DEPTH_TEST);
     return true;
 }
 
@@ -283,11 +334,15 @@ bool RigidSolver::Render(void) {
 
 	if (solverStatus && modelFiles.GetValue() != NULL) {
 		// Get current time and eventually spawn a new particle
-		time = std::time(0);
-		if (time - lastSpawn >= spawnTime && spawnedObjects <= numRigidBodies) {
-			spawnedObjects = std::max((int)(spawnedObjects + 1), MAX_NUMBER_OF_RIGID_BODIES);
+		time = std::chrono::high_resolution_clock::now();
+		timeSpanRender = std::min(std::chrono::duration<double, std::milli>(time - lastRender), std::chrono::duration<double, std::milli>(416));
+		timeSpanSpawn = time - lastSpawn;
+		if (timeSpanSpawn.count() / 1000.f  >= spawnTime && spawnedObjects <= numRigidBodies) {
+			spawnedObjects = std::min((int)(spawnedObjects + 1), MAX_NUMBER_OF_RIGID_BODIES);
+			lastSpawn = time;
 		}
-		lastSpawn = time;
+		lastRender = time;
+		
 	}
 
 	// --------------------------------------------------
@@ -433,10 +488,7 @@ bool RigidSolver::loadModel(float * vertices, int * indices, int num) {
 	// Create the particles
 	vaModel.createParticles(&grid);
 
-	// Update the FBO to match the new number of particles
-	initSolverFBOs();
-
-	// Reset simulation to restart everything
+	// Reset simulation to restart everything - this also initiates the new FBOs
 	resetSimulation();
 
 	return true;
@@ -529,15 +581,22 @@ bool RigidSolver::particleValuePass(void)
 	glDrawBuffers(3, attachments);
 
 	// Uniforms
+	glm::mat3 inverseInertia = glm::inverse(vaModel.getInertiaTensor());
+
 	glUniformMatrix4fv(shaderParticleValues.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMX));
-	glUniformMatrix3fv(shaderParticleValues.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(glm::inverse(vaModel.getInertiaTensor())));
+	glUniformMatrix3fv(shaderParticleValues.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(inverseInertia));
+	
 	glUniform1i(shaderParticleValues.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderParticleValues.GetUniformLocation("particleTextureEdgeLength"), sideLength);
 	glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+	glUniform1i(shaderParticleValues.GetUniformLocation("spawnedObjects"), spawnedObjects);
+	
 	glUniform1f(shaderParticleValues.GetUniformLocation("mass"), modelMass);
+	glUniform1f(shaderParticleValues.GetUniformLocation("gravity"), gravity);
+	glUniform1f(shaderParticleValues.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f);
 
 	vaVertex.Bind();
-	drawAbstractData(sideLength, sideLength, shaderParticleValues);
+	drawAbstractData(sideLength, sideLength, shaderParticleValues, true);
 	// glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
 	vaVertex.Release();
 
@@ -602,17 +661,13 @@ bool RigidSolver::collisionGridPass(void)
 
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glPointSize(1.0f);
-
-	// Viewporting to output texture size
-	glViewport(0, 0, sideLength, sideLength);
 
 	shaderCollisionGrid.Bind();
 
 	// Textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, particlePositionsTex);
-	glUniform1i(shaderCollisionGrid.GetUniformLocation("particlePostions"), 0);
+	glUniform1i(shaderCollisionGrid.GetUniformLocation("particlePositions"), 0);
 
 	// Unifroms
 	glUniformMatrix4fv(shaderCollisionGrid.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(grid.getModelMatrix()));
@@ -627,26 +682,30 @@ bool RigidSolver::collisionGridPass(void)
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("particleTextureEdgeLength"), sideLength);
 	glUniform1i(shaderCollisionGrid.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
 
+	GLfloat bkColor[4];
+	glGetFloatv(GL_COLOR_CLEAR_VALUE, bkColor);
+
 	// Define outputs
 	GLuint attachments = { GridIndiceAttachment };
 	glDrawBuffers(1, &attachments);
 
-	GLfloat bkColor[4];
-	glGetFloatv(GL_COLOR_CLEAR_VALUE, bkColor);
-
 	for (unsigned z = 0u; z < grid.getGridResolution().z; z++) {
-		
-		glEnable(GL_DEPTH_TEST);
-		glDisable(GL_STENCIL_TEST);
 
 		// Setting z Coordinate to be able to determine voxel layer
 		glUniform1i(shaderCollisionGrid.GetUniformLocation("z"), z);
 		glUniform1f(shaderCollisionGrid.GetUniformLocation("zCoord"), btmLeftFrontCorner.z + z * voxelLength);
 
-		glClearColor(0, 0, 0, 0);
+		// Set the current output layer
+		glFramebufferTextureLayer(GL_FRAMEBUFFER, GridIndiceAttachment, gridTex, 0, z);
+		glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, gridDepthTex, 0, z);
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glViewport(0, 0, sideLength, sideLength);
 
 		//=== 1 PASS
+		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_STENCIL_TEST);
+
 		glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
 		glDepthFunc(GL_LESS);
 
@@ -693,7 +752,7 @@ bool RigidSolver::collisionGridPass(void)
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glDepthFunc(GL_LESS);
 	glDisable(GL_STENCIL_TEST);
-
+	glClearColor(bkColor[0], bkColor[1], bkColor[2], bkColor[3]);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	if (DEBUGGING) {
@@ -703,24 +762,22 @@ bool RigidSolver::collisionGridPass(void)
 		int arraySize = std::max(gridResolution.x, 16) * std::max(gridResolution.y, 256) * std::max(gridResolution.z, 256) * 4;
 		gridIndices = new GLuint[arraySize];
 
-		glBindTexture(GL_TEXTURE_3D, gridTex);
-		glGetTexImage(GL_TEXTURE_3D, 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, gridIndices);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, gridTex);
+		glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, gridIndices);
 		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/collisionGrid_gridIndices.txt"), gridIndices, arraySize, 4);
 
-		glBindTexture(GL_TEXTURE_2D, 0);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
 		delete[] gridIndices;
 	}
-
-	// Clearing
-	glClearColor(bkColor[0], bkColor[1], bkColor[2], bkColor[3]);
 
 	return false;
 }
 
 bool RigidSolver::collisionPass() {
 
-	glBindFramebuffer(GL_FRAMEBUFFER, particlesFBO);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, particlesFBO);
+	// glBindFramebuffer(GL_READ_FRAMEBUFFER, particlesFBO);
 
 	shaderCollision.Bind();
 
@@ -729,7 +786,7 @@ bool RigidSolver::collisionPass() {
 
 	// Textures
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_3D, gridTex);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, gridTex);
 	glUniform1i(shaderCollision.GetUniformLocation("collisionGrid"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
@@ -743,23 +800,28 @@ bool RigidSolver::collisionPass() {
 	if (texSwitch == false) {
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 3);
+		glUniform1i(shaderCollision.GetUniformLocation("rigidBodyPositions"), 3);
 
 	}
 	else {
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 3);
+		glUniform1i(shaderCollision.GetUniformLocation("rigidBodyPositions"), 3);
 	}
 
 	// Uniforms
 	glUniform1f(shaderCollision.GetUniformLocation("gravity"), gravity);
+	glUniform1f(shaderCollision.GetUniformLocation("mass"), modelMass);
+	glUniform1f(shaderCollision.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f);
 	glUniform1f(shaderCollision.GetUniformLocation("voxelLength"), grid.getVoxelLength());
 	glUniform1f(shaderCollision.GetUniformLocation("particleDiameter"), particleSize);
+	glUniform1f(shaderCollision.GetUniformLocation("dampingCoefficient"), dampingCoefficient);
+	glUniform1f(shaderCollision.GetUniformLocation("sprintCoefficient"), springCoefficient);
 
 	glUniform1i(shaderCollision.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderCollision.GetUniformLocation("particleTextureEdgeLength"), particleTextureEdgeLength);
 	glUniform1i(shaderCollision.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+	glUniform1i(shaderCollision.GetUniformLocation("spawnedObjects"), spawnedObjects);
 
 	glUniform3fv(shaderCollision.GetUniformLocation("btmLeftFrontCorner"), 1, glm::value_ptr(grid.getBtmLeftFront()));
 
@@ -769,7 +831,9 @@ bool RigidSolver::collisionPass() {
 
 	// Draw particles - shaders tests for collisions
 	vaVertex.Bind();
-	RigidSolver::drawAbstractData(particleTextureEdgeLength, particleTextureEdgeLength, shaderCollision);
+
+	glClearColor(0.f, 0.f, 0.f, 0.f);
+	RigidSolver::drawAbstractData(particleTextureEdgeLength, particleTextureEdgeLength, shaderCollision, true);
 	// glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
 	vaVertex.Release();
 
@@ -777,12 +841,28 @@ bool RigidSolver::collisionPass() {
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+	if (DEBUGGING) {
+
+		int particleSideLength = getParticleTextureSideLength();
+
+		float * particleForces;
+
+		particleForces = new float[particleSideLength * particleSideLength * 3];
+
+		glBindTexture(GL_TEXTURE_2D, particleForcesTex);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, particleForces);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/collision_particleForces.txt"), particleForces, particleSideLength * particleSideLength * 3, 3);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		delete[] particleForces;
+
+	}
 	return false;
 }
 
 bool RigidSolver::momentaPass(void)
 {
-
 	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
 
 	shaderMomentaCalculation.Bind();
@@ -797,24 +877,53 @@ bool RigidSolver::momentaPass(void)
 	glUniform1i(shaderMomentaCalculation.GetUniformLocation("rigidBodyTextureEdgeLength"), rigidBodyTextureLength);
 	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particleTextureEdgeLength"), getParticleTextureSideLength());
 	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("spawnedObjects"), spawnedObjects);
+	
+	glUniform1f(shaderMomentaCalculation.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f);
 
 	// Activate the input textures
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, particleRelativePositionTex);
-	glUniform1i(shaderBeauty.GetUniformLocation("relativeParticlePositions"), 0);
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("relativeParticlePositions"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, particleForcesTex);
-	glUniform1i(shaderBeauty.GetUniformLocation("particleForces"), 1);
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particleForces"), 1);
 
 	// Update the particles and rigid body positions
 	vaVertex.Bind();
-	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderMomentaCalculation);
+	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderMomentaCalculation, true);
 	vaVertex.Release();
 
 	shaderMomentaCalculation.Release();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+	if (DEBUGGING) {
+
+		int size = rigidBodyTextureLength * rigidBodyTextureLength * 3;
+
+		float * linearMomenta;
+		float * angularMomenta;
+
+		linearMomenta = new float[size];
+		angularMomenta = new float[size];
+
+		glBindTexture(GL_TEXTURE_2D, rigidBodyLinearMomentumTex);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, linearMomenta);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/momenta_linearMomenta.txt"), linearMomenta, size, 3);
+
+		glBindTexture(GL_TEXTURE_2D, rigidBodyAngularMomentumTex);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, angularMomenta);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/momenta_angularMomenta.txt"), angularMomenta, size, 3);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		delete[] linearMomenta;
+		delete[] angularMomenta;
+
+	}
 
 	return false;
 }
@@ -825,16 +934,17 @@ bool RigidSolver::solverPass(void)
 	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
 
 	shaderSolver.Bind();
+
 	GLuint attachments[2];
 
 	if (texSwitch == false) {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 0);
+		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyPositions"), 0);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex1);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyVelocities"), 1);
+		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyQuaternions"), 1);
 
 		attachments[0] = RigidBodyPositionAttachment2;
 		attachments[1] = RigidBodyQuaternionAttachment2;
@@ -843,11 +953,11 @@ bool RigidSolver::solverPass(void)
 	else {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyPositions"), 0);
+		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyPositions"), 0);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex2);
-		glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyVelocities"), 1);
+		glUniform1i(shaderSolver.GetUniformLocation("rigidBodyQuaternions"), 1);
 
 		attachments[0] = RigidBodyPositionAttachment1;
 		attachments[1] = RigidBodyQuaternionAttachment1;
@@ -856,71 +966,79 @@ bool RigidSolver::solverPass(void)
 
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, rigidBodyLinearMomentumTex);
-	glUniform1i(shaderBeauty.GetUniformLocation("rigidBodyVelocities"), 1);
+	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyLinearMomentums"), 2);
+
+
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, rigidBodyAngularMomentumTex);
+	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyAngularMomentums"), 2);
 
 	// Uniforms
-	glUniform1i(shaderMomentaCalculation.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
-	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particleTextureEdgeLength"), getParticleTextureSideLength());
-	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
+	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+	glUniform1i(shaderSolver.GetUniformLocation("particleTextureEdgeLength"), getParticleTextureSideLength());
+	glUniform1i(shaderSolver.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
+	glUniform1i(shaderSolver.GetUniformLocation("spawnedObjects"), spawnedObjects);
 
 	glUniform1f(shaderSolver.GetUniformLocation("mass"), modelMass);
-	glUniform1f(shaderMomentaCalculation.GetUniformLocation("deltaT"), time - lastSpawn); // FIXME: Is this really right?
+	glUniform1f(shaderSolver.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f); // FIXME: Is this really right?
 
-	glUniformMatrix3fv(shaderMomentaCalculation.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(glm::inverse(vaModel.getInertiaTensor())));
-
-
+	glUniformMatrix3fv(shaderSolver.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(glm::inverse(vaModel.getInertiaTensor())));
 
 	// Output textures
 	glDrawBuffers(2, attachments);
 
+	// The Clear Color must be the inital Position
+	glm::vec4 initialPosition = glm::vec4(grid.getEmitterPosition(), 1.f);
+	glClearColor(initialPosition.x, initialPosition.y, initialPosition.z, initialPosition.w);
+
 	// Update the particles and rigid body positions
 	vaVertex.Bind();
 	int rigidBodyTextureLength = getRigidBodyTextureSizeLength();
-	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderSolver);
+	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderSolver, false);
 	vaVertex.Release();
 
 	shaderSolver.Release();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+
+	if (DEBUGGING) {
+
+		int size = rigidBodyTextureLength * rigidBodyTextureLength;
+
+		float * rigidPositions;
+		float * rigidQuaternions;
+
+		rigidPositions = new float[size * 3];
+		rigidQuaternions = new float[size * 4];
+
+		if (texSwitch == false) glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex2);
+		else glBindTexture(GL_TEXTURE_2D, rigidBodyPositionsTex1);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, rigidPositions);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/solver_rigidBodyPositions.txt"), rigidPositions, size * 3, 3);
+
+		if (texSwitch == false) glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex2);
+		else glBindTexture(GL_TEXTURE_2D, rigidBodyQuaternionsTex1);
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, rigidQuaternions);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/solver_rigidBodyQuaternions.txt"), rigidQuaternions, size * 4, 4);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		delete[] rigidPositions;
+		delete[] rigidQuaternions;
+
+	}
 	return false;
 }
 
 
 bool RigidSolver::beautyPass(void) {
-	
+
 	// Set up the proj Matrices
 	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
 
-	/* ------------------- TEST -----------
-	// Setup orthographic view scaled to grid size, looking into positive z direction (y up)
-	glm::vec3 gridSize = grid.getGridSize();
-	glm::ivec3 gridResolution = grid.getGridResolution();
-	float voxelLength = grid.getVoxelLength();
-	glm::vec3 modelSize = vaModel.getModelSize();
-	glm::vec3 btmLeftFrontCorner = grid.getBtmLeftFront();
-	glm::vec3 topRightBackCorner = grid.getTopRightBack();
-
-	float bias = 0.001f;
-	float zNear = bias;
-	float zFar = bias + gridSize.z;
-
-	glm::vec3 eye = glm::vec3(0.f, 0.f, btmLeftFrontCorner.z - bias);
-	viewMX = glm::lookAt(eye, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
-	projMX = glm::ortho(btmLeftFrontCorner.x, topRightBackCorner.x, btmLeftFrontCorner.y, topRightBackCorner.y, zNear, zFar);
-
-	// Scale the model to fit the grid (so we use the full resolution)
-	glm::mat4 modelMatrix = grid.getModelMatrix();
-	float scaling = std::min(std::min(gridSize.x / modelSize.x, gridSize.y / modelSize.y), gridSize.z / modelSize.z);
-	modelMatrix = glm::scale(modelMatrix, scaling, scaling, scaling);
-
-	windowWidth = gridResolution.x;
-	windowHeight = gridResolution.y;
-
-	// --------------------------------------------------------------
-	*/
-
 	// Clearing
+	glClearColor(0.f, 0.f, 0.f, 1.f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// Viewporting to full view
@@ -953,7 +1071,7 @@ bool RigidSolver::beautyPass(void) {
 	glUniform3fv(shaderBeauty.GetUniformLocation("diffuse"), 1, glm::value_ptr(glm::vec3(.8f, .8f, .8f)));
 	glUniform3fv(shaderBeauty.GetUniformLocation("specular"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
 
-	glUniform1f(shaderBeauty.GetUniformLocation("k_amb"), 0.4f);
+	glUniform1f(shaderBeauty.GetUniformLocation("k_amb"), 0.2f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_diff"), 0.8f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_spec"), 1.0f);
 	glUniform1f(shaderBeauty.GetUniformLocation("k_exp"), 2.0f);
@@ -1026,22 +1144,6 @@ bool RigidSolver::initSolverFBOs() {
 	result = result && initParticleFBO();
 	result = result && initGridFBO();
 
-	// Write out the result of the initialParticlePositions
-	if (DEBUGGING) {
-
-		int size = std::max(vaModel.getNumParticles(), 1024) * 3;
-
-		float * data;
-		data = new float[size];
-		glBindTexture(GL_TEXTURE_1D, initialParticlePositionsTex);
-		glGetTexImage(GL_TEXTURE_1D, 0, GL_RGB, GL_FLOAT, data);
-		glBindTexture(GL_TEXTURE_1D, 0);
-
-		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/initialParticlePositions.txt"), data, size, 3);
-
-		delete[] data;
-
-	}
 	return result;
 
 }
@@ -1101,10 +1203,13 @@ bool RigidSolver::initGridFBO(void)
 bool RigidSolver::resetSimulation(void)
 {
 	solverStatus = true;
-	spawnedObjects = 0;
-	lastSpawn = std::time(0);
+	spawnedObjects = 1;
 
 	initSolverFBOs();
+
+	time = std::chrono::high_resolution_clock::now();
+	lastSpawn = time;
+	lastRender = time;
 
 	return true;
 }
@@ -1128,7 +1233,7 @@ bool RigidSolver::reloadShaders(void)
 	shaderMomentaCalculation.CreateProgramFromFile(momentaVertShaderName.c_str(), momentaFragShaderName.c_str());
 	shaderParticleValues.CreateProgramFromFile(particleValuesVertShaderName.c_str(), particleValuesFragShaderName.c_str());
 	shaderCollision.CreateProgramFromFile(collisionVertShaderName.c_str(), collisionFragShaderName.c_str());
-	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridGeomShaderName.c_str() ,collisionGridFragShaderName.c_str());
+	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridFragShaderName.c_str());
 	shaderSolver.CreateProgramFromFile(solverVertShaderName.c_str(), solverFragShaderName.c_str());
 	
 	// The shaders which are used for depth peeling - for code development only
@@ -1161,7 +1266,7 @@ bool RigidSolver::updateParticles() {
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	// Init empty image (to currently bound FBO)
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, std::max(vaModel.getNumParticles(), 1024), 0, GL_RGB, GL_FLOAT, vaModel.getParticlePositions());
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, std::max(vaModel.getNumParticles() * 3, 1024), 0, GL_RGB, GL_FLOAT, vaModel.getParticlePositions());
 	glBindTexture(GL_TEXTURE_1D, 0);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticlePositionAttachment, GL_TEXTURE_2D, particlePositionsTex, 0);
@@ -1177,29 +1282,51 @@ bool RigidSolver::updateParticles() {
 bool RigidSolver::updateGrid() {
 	// Must be done on init or when voxel size changes
 
+	glm::ivec3 gridDimensions = grid.getGridResolution();
+
+
+	// --------------------------------------------------
+	//  Depth/ Stencil Texture - Needed for the collision grid indice assignment
+	// --------------------------------------------------   
+
+	glGenTextures(1, &gridDepthTex);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, gridDepthTex);
+
+	// Set the wrap and interpolation parameter
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH32F_STENCIL8, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, gridDepthTex, 0);
+
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
 	// --------------------------------------------------
 	//  Grid Texture
 	// --------------------------------------------------   
 
 	// Assuming diameter particle = voxel edge length -> max 4x particles per voxel
 	glGenTextures(1, &gridTex);
-	glBindTexture(GL_TEXTURE_3D, gridTex);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, gridTex);
 
 	// Set the wrap and interpolation parameter
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	// Init empty image (to currently bound FBO)
-	glm::ivec3 gridDimensions = grid.getGridResolution();
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16UI, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA16UI, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+	
 	glFramebufferTexture(GL_FRAMEBUFFER, GridIndiceAttachment, gridTex, 0);
-	// glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
 
-	glBindTexture(GL_TEXTURE_3D, 0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
 	return false;
 }
@@ -1212,7 +1339,7 @@ bool RigidSolver::updateRigidBodies(void)
 	// --------------------------------------------------   
 
 	glm::vec3 position = grid.getEmitterPosition();
-	glm::vec3 initialVelocity = grid.getEmitterVelocity();
+	glm::vec3 initialVelocity = glm::vec3(0.f, -gravity * modelMass, 0.f);
 	glm::quat unitQuaternion = glm::quat(1.f, 0.f, 0.f, 0.f);
 
 	//  Calculating back the square count
@@ -1327,6 +1454,29 @@ void RigidSolver::fileChanged(FileEnumVar<RigidSolver> &var) {
 			// TODO: Scale the model here
 			loadModel(vertices, indices, texCoords, normals, numVertices);
 
+
+			// Write out the result of the initialParticlePositions
+			if (DEBUGGING) {
+				int size = std::max(vaModel.getNumParticles() * 3, 1024);
+
+				// Write out particle positions directly from array
+				saveArrayToTXT(RigidSolver::debugDirectory + std::string("/relativeParticlePositions.txt"), vaModel.getParticlePositions(), size, 3);
+
+				// Write out particle position from texture
+				/*
+				float * data;
+				int width, height;
+
+				data = new float[size];
+				glBindTexture(GL_TEXTURE_1D, initialParticlePositionsTex);
+				glGetTexImage(GL_TEXTURE_1D, 0, GL_RGB, GL_FLOAT, data);
+				glBindTexture(GL_TEXTURE_1D, 0);
+				saveArrayToTXT(RigidSolver::debugDirectory + std::string("/textureRelativeParticlePositions.txt"), data, size, 3);
+
+				delete[] data;
+				*/
+
+			}
 			delete[] vertices;
 			delete[] normals;
 			delete[] texCoords;
@@ -1341,6 +1491,10 @@ void RigidSolver::particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var)
 	
 }
 
+void RigidSolver::resetSimulationTriggered(ButtonVar<RigidSolver> &button) {
+
+	resetSimulation();
+}
 
 // --------------------------------------------------
 //  HELPERS
@@ -1395,6 +1549,11 @@ bool RigidSolver::checkFBOStatus(std::string fboName) {
 	}
 	case GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE: {
 		fprintf(stderr, "FBO '%s': number of samples or the value for ... does not match.\n", fboName.c_str());
+		break;
+	}
+
+	case GL_FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS: {
+		fprintf(stderr, "FBO '%s': Incomplete Layer targets.\n", fboName.c_str());
 		break;
 	}
 	}
@@ -1508,6 +1667,44 @@ bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int 
 	else return true;
 }
 
+bool RigidSolver::saveTextureToBMP(std::string filenname, GLuint texture, int width, int height, int channels, GLenum format, GLenum type)
+{
+
+	std::string outputFilePath = RigidSolver::debugDirectory + filenname + std::string(".bmp");
+
+	unsigned char * outputData;
+	outputData = new unsigned char[width * height * channels];
+
+	GLuint * bufferData;
+	bufferData = new GLuint[width * height * channels];
+
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glGetTexImage(GL_TEXTURE_2D, 0, format, type, bufferData);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	float ubitsize = 255.f;
+	if (type == GL_UNSIGNED_INT) ubitsize = std::pow(2, 32);
+	
+	for (unsigned int i = 0; i < width * height; i++) {
+		int r8 = int(bufferData[i] / ubitsize * 255.f);
+		outputData[i] = (unsigned char)r8;
+	}
+	int save_result = SOIL_save_image
+	(
+		outputFilePath.c_str(),
+		SOIL_SAVE_TYPE_BMP,
+		width, height, channels,
+		outputData
+	);
+
+	delete[] bufferData;
+	delete[] outputData;
+
+	if (save_result == 0) return false;
+	else return true;
+	
+}
+
 /** \brief Draws data into a texture using a window filling quad
 * The shader must be bound in the surrounding code!!
 
@@ -1560,10 +1757,11 @@ void main() {
 
 *
 */
-void RigidSolver::drawAbstractData(unsigned int width, unsigned int height, GLShader &shader) {
+void RigidSolver::drawAbstractData(unsigned int width, unsigned int height, GLShader &shader, bool doClear) {
 
 	glViewport(0, 0, width, height);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	if(doClear) glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glm::mat4 orthoMX = glm::ortho(0.0f, 1.f, 0.0f, 1.f);
 

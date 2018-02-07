@@ -2,6 +2,8 @@
 
 #define M_PI  3.14159265
 
+layout(pixel_center_integer) in vec4 gl_FragCoord;
+
 uniform sampler2D lastDepth;
 uniform int enabled;
 
@@ -15,7 +17,6 @@ void main() {
 	
 	if (enabled > 0){
 		float frontDepth = texelFetch(lastDepth, ivec2(gl_FragCoord.xy), 0).r;
-		// float frontDepth = texture(lastDepth, gl_FragCoord.xy).r;
 		if (gl_FragCoord.z <= frontDepth) {
 			discard;
 		}

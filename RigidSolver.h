@@ -8,7 +8,7 @@
 #include "SolverModel.h"
 
 // Global variables
-const bool DEBUGGING = true;
+const bool DEBUGGING = false;
 
 // This class is exported from the RigidSolver.dll
 class OGL4COREPLUGIN_API RigidSolver : public RenderPlugin {
@@ -30,9 +30,9 @@ public:
 	static bool checkFBOStatus(std::string fboName);
 	static bool saveFramebufferPNG(std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type);
 	static bool saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height);
+	static bool saveTextureToBMP(std::string filenname, GLuint texture, int width, int height, int channels, GLenum format, GLenum type);
 	template <class T> static bool saveArrayToTXT(std::string filename, T * array, int num, int chunkSize);
-
-	static void drawAbstractData(unsigned int width, unsigned int height, GLShader &shader);
+	static void drawAbstractData(unsigned int width, unsigned int height, GLShader &shader, bool doClear);
 
 	// Public static vertex arrays
 	static VertexArray vaQuad;
@@ -72,6 +72,7 @@ private:
 
 	void fileChanged(FileEnumVar<RigidSolver> &var);
 	void particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var);
+	void resetSimulationTriggered(ButtonVar<RigidSolver> &button);
 
 	// API Vars
 	FileEnumVar<RigidSolver>  modelFiles;
@@ -82,7 +83,11 @@ private:
 	APIVar<RigidSolver, IntVarPolicy> numRigidBodies;
 	APIVar<RigidSolver, FloatVarPolicy> gravity;
 	APIVar<RigidSolver, FloatVarPolicy> modelMass;
+	APIVar<RigidSolver, FloatVarPolicy> springCoefficient;
+	APIVar<RigidSolver, FloatVarPolicy> dampingCoefficient;
 	APIVar<RigidSolver, IntVarPolicy> spawnTime;
+	ButtonVar<RigidSolver> resetButton;
+
 
 	// Paths - needed for reloadShaders()
 	std::string commonFunctionsVertShaderName;
@@ -100,7 +105,8 @@ private:
 
 	// Solver
 	unsigned int spawnedObjects = 1u; // Always starts with one instance
-	time_t time = std::time(0), lastSpawn = time;
+	std::chrono::high_resolution_clock::time_point time = std::chrono::high_resolution_clock::now(), lastSpawn = time, lastRender = time;
+	std::chrono::duration<double, std::milli> timeSpanRender, timeSpanSpawn;
 
 	// --------------------------------------------------
 	//  OpenGL variables
@@ -124,7 +130,7 @@ private:
 
 	// Textures
 	GLuint beautyDepthTex;
-	GLuint gridTex;
+	GLuint gridTex, gridDepthTex;
 
 	bool texSwitch = false; // false=1, true=2
 

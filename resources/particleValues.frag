@@ -11,8 +11,11 @@ layout(pixel_center_integer) in vec4 gl_FragCoord;
 uniform int particlesPerModel;
 uniform int particleTextureEdgeLength;
 uniform int rigidBodyTextureEdgeLength;
+uniform int spawnedObjects;
 
 uniform float mass;
+uniform float gravity;
+uniform float deltaT;
 
 uniform mat3 invIntertiaTensor;
 
@@ -26,17 +29,28 @@ uniform sampler1D relativeParticlePositions;
 
 // Functions
 mat3 quaternion2rotation(vec4 q){
-	return mat3(
+
+	mat3 rotation;
+
+	rotation[0] = vec3(
 		1.0 - 2.0 * pow(q.z, 2) - 2.0 * pow(q.w, 2),
-		2.0 * q.y * q.z - 2.0 * q.x * q.w,
-		2.0 * q.y * q.z + 2.0 * q.x * q.z,
 		2.0 * q.y * q.z + 2.0 * q.x * q.w,
+		2.0 * q.y * q.w - 2.0 * q.x * q.z
+	);
+
+	rotation[1] = vec3(
+		2.0 * q.y * q.z - 2.0 * q.x * q.w,
 		1.0 - 2.0 * pow(q.y, 2) - 2.0 * pow(q.w, 2),
+		2.0 * q.z * q.w + 2.0 * q.x * q.y
+	);
+
+	rotation[2] = vec3(
+		2.0 * q.y * q.z + 2.0 * q.x * q.z,
 		2.0 * q.z * q.w - 2.0 * q.x * q.y,
-		2.0 * q.y * q.w - 2.0 * q.x * q.z,
-		2.0 * q.z * q.w + 2.0 * q.x * q.y,
 		1.0 - 2.0 * pow(q.y, 2) - 2.0 * pow(q.z, 2) 
-		);
+	);
+
+	return rotation;
 }
 
 ivec2 idxTo2DRigidBodyCoords(int idx){
@@ -55,6 +69,10 @@ void main() {
 	int particleID = particleCoords.y * particleTextureEdgeLength + particleCoords.x;
 	int rigidBodyID = int(particleID / particlesPerModel);
 	
+	if (rigidBodyID >= spawnedObjects){
+		discard;
+		return;
+	}
 
 	// ------------------------------------------------------------
 	// Fetching necessary data
@@ -73,7 +91,7 @@ void main() {
 	// Calculate values
 	// ------------------------------------------------------------
 
-	mat3 quaternionRotation = quaternion2rotation(rigidQuaternion);
+	mat3 quaternionRotation = quaternion2rotation(normalize(rigidQuaternion));
 	vec3 relativePosition = quaternionRotation * initialRelativeParticlePosition;
 
 	// Calculate velocity
