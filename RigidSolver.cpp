@@ -1163,7 +1163,7 @@ bool RigidSolver::initSolverFBOs() {
 	// Write out the result of the initialParticlePositions
 	if (DEBUGGING) {
 
-		int size = std::max(vaModel.getNumParticles(), 1024) * 3;
+		int size = std::max(vaModel.getNumParticles() * 3, 1024);
 
 		float * data;
 		data = new float[size];
@@ -1171,7 +1171,7 @@ bool RigidSolver::initSolverFBOs() {
 		glGetTexImage(GL_TEXTURE_1D, 0, GL_RGB, GL_FLOAT, data);
 		glBindTexture(GL_TEXTURE_1D, 0);
 
-		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/initialParticlePositions.txt"), data, size, 3);
+		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/textureRelativeParticlePositions.txt"), data, size, 3);
 
 		delete[] data;
 
@@ -1295,7 +1295,7 @@ bool RigidSolver::updateParticles() {
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	// Init empty image (to currently bound FBO)
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, std::max(vaModel.getNumParticles(), 1024), 0, GL_RGB, GL_FLOAT, vaModel.getParticlePositions());
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, std::max(vaModel.getNumParticles() * 3, 1024), 0, GL_RGB, GL_FLOAT, vaModel.getParticlePositions());
 	glBindTexture(GL_TEXTURE_1D, 0);
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, ParticlePositionAttachment, GL_TEXTURE_2D, particlePositionsTex, 0);
