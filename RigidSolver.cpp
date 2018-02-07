@@ -1431,6 +1431,29 @@ void RigidSolver::fileChanged(FileEnumVar<RigidSolver> &var) {
 			// TODO: Scale the model here
 			loadModel(vertices, indices, texCoords, normals, numVertices);
 
+
+			// Write out the result of the initialParticlePositions
+			if (DEBUGGING) {
+				int size = std::max(vaModel.getNumParticles() * 3, 1024);
+
+				// Write out particle positions directly from array
+				saveArrayToTXT(RigidSolver::debugDirectory + std::string("/relativeParticlePositions.txt"), vaModel.getParticlePositions(), size, 3);
+
+				// Write out particle position from texture
+				/*
+				float * data;
+				int width, height;
+
+				data = new float[size];
+				glBindTexture(GL_TEXTURE_1D, initialParticlePositionsTex);
+				glGetTexImage(GL_TEXTURE_1D, 0, GL_RGB, GL_FLOAT, data);
+				glBindTexture(GL_TEXTURE_1D, 0);
+				saveArrayToTXT(RigidSolver::debugDirectory + std::string("/textureRelativeParticlePositions.txt"), data, size, 3);
+
+				delete[] data;
+				*/
+
+			}
 			delete[] vertices;
 			delete[] normals;
 			delete[] texCoords;
