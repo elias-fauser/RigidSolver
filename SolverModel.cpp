@@ -282,8 +282,11 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 	this->particlePositions = new float[particles.size()];
 	if (particles.size() > 0) {
-		particlePositions = &particles[0];
+		for (unsigned int i = 0u; i < particles.size(); i++) {
+			particlePositions[i] = particles[i];
+		}
 	}
+	else this->particlePositions = nullptr;
 
 	this->numParticles = particles.size() / 3;
 
