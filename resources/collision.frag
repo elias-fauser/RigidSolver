@@ -21,7 +21,7 @@ uniform int rigidBodyTextureEdgeLength;
 uniform vec3 btmLeftFrontCorner;
 
 // Textures
-uniform usampler3D collisionGrid;
+uniform usampler2DArray collisionGrid;
 uniform sampler2D rigidBodyPositions;
 uniform sampler2D particlePositions;
 uniform sampler2D particleVelocities;
