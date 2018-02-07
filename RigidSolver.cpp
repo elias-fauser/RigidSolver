@@ -1669,6 +1669,44 @@ bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int 
 	else return true;
 }
 
+bool RigidSolver::saveTextureToBMP(std::string filenname, GLuint texture, int width, int height, int channels, GLenum format, GLenum type)
+{
+
+	std::string outputFilePath = RigidSolver::debugDirectory + filenname + std::string(".bmp");
+
+	unsigned char * outputData;
+	outputData = new unsigned char[width * height * channels];
+
+	GLuint * bufferData;
+	bufferData = new GLuint[width * height * channels];
+
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glGetTexImage(GL_TEXTURE_2D, 0, format, type, bufferData);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	float ubitsize = 255.f;
+	if (type == GL_UNSIGNED_INT) ubitsize = std::pow(2, 32);
+	
+	for (unsigned int i = 0; i < width * height; i++) {
+		int r8 = int(bufferData[i] / ubitsize * 255.f);
+		outputData[i] = (unsigned char)r8;
+	}
+	int save_result = SOIL_save_image
+	(
+		outputFilePath.c_str(),
+		SOIL_SAVE_TYPE_BMP,
+		width, height, channels,
+		outputData
+	);
+
+	delete[] bufferData;
+	delete[] outputData;
+
+	if (save_result == 0) return false;
+	else return true;
+	
+}
+
 /** \brief Draws data into a texture using a window filling quad
 * The shader must be bound in the surrounding code!!
 

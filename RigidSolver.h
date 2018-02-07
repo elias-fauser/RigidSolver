@@ -30,6 +30,7 @@ public:
 	static bool checkFBOStatus(std::string fboName);
 	static bool saveFramebufferPNG(std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type);
 	static bool saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height);
+	static bool saveTextureToBMP(std::string filenname, GLuint texture, int width, int height, int channels, GLenum format, GLenum type);
 	template <class T> static bool saveArrayToTXT(std::string filename, T * array, int num, int chunkSize);
 	static void drawAbstractData(unsigned int width, unsigned int height, GLShader &shader);
 
