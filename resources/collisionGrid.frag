@@ -10,6 +10,8 @@ flat in int particleID;
 in vec4 particlePosition;
 
 void main() {
+	
+	gridOut = uvec4(0);
 
 	// Only considering particles which are in the current z layer
 	if (particlePosition.z >= zCoord && particlePosition.z < zCoord + voxelLength){
