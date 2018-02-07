@@ -987,6 +987,10 @@ bool RigidSolver::solverPass(void)
 	// Output textures
 	glDrawBuffers(2, attachments);
 
+	// The Clear Color must be the inital Position
+	glm::vec4 initialPosition = glm::vec4(grid.getEmitterPosition(), 1.f);
+	glClearColor(initialPosition.x, initialPosition.y, initialPosition.z, initialPosition.w);
+
 	// Update the particles and rigid body positions
 	vaVertex.Bind();
 	int rigidBodyTextureLength = getRigidBodyTextureSizeLength();
@@ -1034,6 +1038,7 @@ bool RigidSolver::beautyPass(void) {
 	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
 
 	// Clearing
+	glClearColor(0.f, 0.f, 0.f, 1.f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// Viewporting to full view
@@ -1334,7 +1339,7 @@ bool RigidSolver::updateRigidBodies(void)
 	// --------------------------------------------------   
 
 	glm::vec3 position = grid.getEmitterPosition();
-	glm::vec3 initialVelocity = grid.getEmitterVelocity();
+	glm::vec3 initialVelocity = glm::vec3(0.f, -gravity * modelMass, 0.f);
 	glm::quat unitQuaternion = glm::quat(1.f, 0.f, 0.f, 0.f);
 
 	//  Calculating back the square count
@@ -1755,7 +1760,8 @@ void main() {
 void RigidSolver::drawAbstractData(unsigned int width, unsigned int height, GLShader &shader, bool doClear) {
 
 	glViewport(0, 0, width, height);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	if(doClear) glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glm::mat4 orthoMX = glm::ortho(0.0f, 1.f, 0.0f, 1.f);
 
