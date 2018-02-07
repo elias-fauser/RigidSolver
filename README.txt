@@ -9,6 +9,7 @@ dropdown menu item "Model".
 Further UI attributes:
 	* fovY: The y field of view angle
 	* Active: Switch if the simulation is running
+	* Reset: Button which resets the simulation
 	* SpawnTime: The number of seconds between each spawn of a new rigid body
 	* Gravity: The gravity force
 	* Mass: The mass of a rigid body
