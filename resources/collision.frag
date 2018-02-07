@@ -80,22 +80,7 @@ void main() {
 	vec3 forceTangential = vec3(0.f);
 
 	// Always apply gravity (To position so ground collisions are detected)
-	particleForce += vec3(0.f, -gravity * deltaT * mass, 0.f);
-
-	// Determine floor collisions (considering applied forces)
-	if (particlePosition_i.y < btmLeftFrontCorner.y){
-
-		vec3 normalizedRelativePosition = -vec3(0.f, particlePosition_i.y - btmLeftFrontCorner.y, 0.f); // Distance beneath the floor
-		normalizedRelativePosition /= length(normalizedRelativePosition);
-		vec3 velocity_ij = -particleVelocity_i; // Velocity negativ with respect to floor
-
-		// Calculate repulsive forces
-		forceSpring = -1.f * (dampingCoefficient + particlePosition_i.y) * normalizedRelativePosition; // No spring efficient, full return force
-		forceDamp = particleDiameter * velocity_ij;
-		forceTangential = velocity_ij - (velocity_ij * normalizedRelativePosition) * normalizedRelativePosition;
-
-		particleForce += forceSpring + forceDamp + forceTangential;
-	}
+	particleForce += vec3(0.f, -gravity * mass / particlesPerModel, 0.f);
 
 	// Determine collision forces
 	for (int i = -1; i < 2; i++){
@@ -123,6 +108,9 @@ void main() {
 					vec3 particlePosition_j = texelFetch(particlePositions, idxTo2DParticleCoords(int(particleIdx)), 0).xyz;
 					vec3 particleVelocity_j = texelFetch(particleVelocities, idxTo2DParticleCoords(int(particleIdx)), 0).xyz;
 
+					// Apply gravity
+					// particleVelocity_j += vec3(0.f, -gravity * deltaT * mass, 0.f);
+
 					// Collision
 					if (collision(particlePosition_i, particlePosition_j, particleDiameter)){
 						vec3 normalizedRelativePosition_ij = abs(particlePosition_i - particlePosition_j); // Is that right?
@@ -141,6 +129,20 @@ void main() {
 				}
 	}}}
 	
+	// Determine floor collisions (considering applied forces)
+	if (particlePosition_i.y < btmLeftFrontCorner.y){
+
+		vec3 normalizedRelativePosition = -vec3(0.f, particlePosition_i.y - btmLeftFrontCorner.y, 0.f); // Distance beneath the floor
+		normalizedRelativePosition /= length(normalizedRelativePosition);
+		vec3 velocity_ij = -particleVelocity_i; // Velocity negativ with respect to floor
+
+		// Calculate repulsive forces
+		forceSpring = -1.f * (dampingCoefficient + particlePosition_i.y) * normalizedRelativePosition; // No spring efficient, full return force
+		forceDamp = particleDiameter * velocity_ij;
+		forceTangential = velocity_ij - (velocity_ij * normalizedRelativePosition) * normalizedRelativePosition;
+
+		particleForce += forceSpring + forceDamp + forceTangential;
+	}
 
 	// Output to force texture
 	outParticleForce = particleForce;

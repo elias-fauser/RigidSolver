@@ -593,7 +593,7 @@ bool RigidSolver::particleValuePass(void)
 	
 	glUniform1f(shaderParticleValues.GetUniformLocation("mass"), modelMass);
 	glUniform1f(shaderParticleValues.GetUniformLocation("gravity"), gravity);
-	glUniform1f(shaderParticleValues.GetUniformLocation("deltaT"), time_span.count() / 1000.f);
+	glUniform1f(shaderParticleValues.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f);
 
 	vaVertex.Bind();
 	drawAbstractData(sideLength, sideLength, shaderParticleValues, true);
@@ -980,7 +980,7 @@ bool RigidSolver::solverPass(void)
 	glUniform1i(shaderSolver.GetUniformLocation("spawnedObjects"), spawnedObjects);
 
 	glUniform1f(shaderSolver.GetUniformLocation("mass"), modelMass);
-	glUniform1f(shaderSolver.GetUniformLocation("deltaT"), time_span.count() / 1000.f); // FIXME: Is this really right?
+	glUniform1f(shaderSolver.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f); // FIXME: Is this really right?
 
 	glUniformMatrix3fv(shaderSolver.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(glm::inverse(vaModel.getInertiaTensor())));
 

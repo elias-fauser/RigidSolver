@@ -17,6 +17,7 @@ uniform int particleTextureEdgeLength;
 uniform int rigidBodyTextureEdgeLength;
 uniform int spawnedObjects;
 
+uniform float deltaT;
 
 
 ivec2 idxTo2DParticleCoords(int idx){
@@ -57,6 +58,6 @@ void main() {
 		angularMomentum += cross(particleRelativePosition, particleForces);
 	}
 	
-	linearMomentumOut = linearMomentum;
-	angularMomentumOut = angularMomentum;
+	linearMomentumOut = linearMomentum * deltaT;
+	angularMomentumOut = angularMomentum * deltaT;
 }
