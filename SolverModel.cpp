@@ -234,7 +234,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		RigidSolver::drawAbstractData(gridResolution.x, gridResolution.y, peelingEvaluationShader);
+		RigidSolver::drawAbstractData(gridResolution.x, gridResolution.y, peelingEvaluationShader, true);
 	}
 
 	glEnable(GL_DEPTH_TEST);

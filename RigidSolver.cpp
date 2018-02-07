@@ -589,7 +589,7 @@ bool RigidSolver::particleValuePass(void)
 	glUniform1f(shaderParticleValues.GetUniformLocation("deltaT"), time_span.count() / 1000.f);
 
 	vaVertex.Bind();
-	drawAbstractData(sideLength, sideLength, shaderParticleValues);
+	drawAbstractData(sideLength, sideLength, shaderParticleValues, true);
 	// glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
 	vaVertex.Release();
 
@@ -825,7 +825,7 @@ bool RigidSolver::collisionPass() {
 	vaVertex.Bind();
 
 	glClearColor(0.f, 0.f, 0.f, 0.f);
-	RigidSolver::drawAbstractData(particleTextureEdgeLength, particleTextureEdgeLength, shaderCollision);
+	RigidSolver::drawAbstractData(particleTextureEdgeLength, particleTextureEdgeLength, shaderCollision, true);
 	// glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
 	vaVertex.Release();
 
@@ -884,7 +884,7 @@ bool RigidSolver::momentaPass(void)
 
 	// Update the particles and rigid body positions
 	vaVertex.Bind();
-	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderMomentaCalculation);
+	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderMomentaCalculation, true);
 	vaVertex.Release();
 
 	shaderMomentaCalculation.Release();
@@ -981,7 +981,7 @@ bool RigidSolver::solverPass(void)
 	// Update the particles and rigid body positions
 	vaVertex.Bind();
 	int rigidBodyTextureLength = getRigidBodyTextureSizeLength();
-	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderSolver);
+	drawAbstractData(rigidBodyTextureLength, rigidBodyTextureLength, shaderSolver, false);
 	vaVertex.Release();
 
 	shaderSolver.Release();
@@ -1739,7 +1739,7 @@ void main() {
 
 *
 */
-void RigidSolver::drawAbstractData(unsigned int width, unsigned int height, GLShader &shader) {
+void RigidSolver::drawAbstractData(unsigned int width, unsigned int height, GLShader &shader, bool doClear) {
 
 	glViewport(0, 0, width, height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
