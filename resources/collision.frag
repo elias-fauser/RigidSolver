@@ -12,11 +12,12 @@ uniform float gravity;
 uniform float mass;
 uniform float deltaT; // time diff in second
 uniform float voxelLength;
-
 uniform float particleDiameter;
+
 uniform int particlesPerModel;
 uniform int particleTextureEdgeLength;
 uniform int rigidBodyTextureEdgeLength;
+uniform int spawnedObjects;
 
 uniform vec3 btmLeftFrontCorner;
 
@@ -60,6 +61,11 @@ void main() {
 	uint particleID = uint(particleCoords.y * particleTextureEdgeLength + particleCoords.x);
 	uint rigidBodyID_i = uint(particleID / uint(particlesPerModel));
 
+	if (rigidBodyID_i >= uint(spawnedObjects)){
+		discard;
+		return;
+	}
+	
 	// vec3 rigidBodyPosition_i = texelFetch(rigidBodyPositions, idxTo2DRigidBodyCoords(rigidBodyID_i), 0).xyz;
 	vec3 particlePosition_i = texelFetch(particlePositions, particleCoords, 0).xyz;
 	vec3 particleVelocity_i = texelFetch(particleVelocities, particleCoords, 0).xyz;

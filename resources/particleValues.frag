@@ -11,6 +11,7 @@ layout(pixel_center_integer) in vec4 gl_FragCoord;
 uniform int particlesPerModel;
 uniform int particleTextureEdgeLength;
 uniform int rigidBodyTextureEdgeLength;
+uniform int spawnedObjects;
 
 uniform float mass;
 uniform float gravity;
@@ -68,6 +69,10 @@ void main() {
 	int particleID = particleCoords.y * particleTextureEdgeLength + particleCoords.x;
 	int rigidBodyID = int(particleID / particlesPerModel);
 	
+	if (rigidBodyID >= spawnedObjects){
+		discard;
+		return;
+	}
 
 	// ------------------------------------------------------------
 	// Fetching necessary data

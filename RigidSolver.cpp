@@ -585,9 +585,12 @@ bool RigidSolver::particleValuePass(void)
 
 	glUniformMatrix4fv(shaderParticleValues.GetUniformLocation("projMX"), 1, GL_FALSE, glm::value_ptr(projMX));
 	glUniformMatrix3fv(shaderParticleValues.GetUniformLocation("invInertiaTensor"), 1, false, glm::value_ptr(inverseInertia));
+	
 	glUniform1i(shaderParticleValues.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderParticleValues.GetUniformLocation("particleTextureEdgeLength"), sideLength);
 	glUniform1i(shaderParticleValues.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+	glUniform1i(shaderParticleValues.GetUniformLocation("spawnedObjects"), spawnedObjects);
+	
 	glUniform1f(shaderParticleValues.GetUniformLocation("mass"), modelMass);
 	glUniform1f(shaderParticleValues.GetUniformLocation("gravity"), gravity);
 	glUniform1f(shaderParticleValues.GetUniformLocation("deltaT"), time_span.count() / 1000.f);
@@ -818,6 +821,7 @@ bool RigidSolver::collisionPass() {
 	glUniform1i(shaderCollision.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
 	glUniform1i(shaderCollision.GetUniformLocation("particleTextureEdgeLength"), particleTextureEdgeLength);
 	glUniform1i(shaderCollision.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
+	glUniform1i(shaderCollision.GetUniformLocation("spawnedObjects"), spawnedObjects);
 
 	glUniform3fv(shaderCollision.GetUniformLocation("btmLeftFrontCorner"), 1, glm::value_ptr(grid.getBtmLeftFront()));
 
@@ -973,6 +977,7 @@ bool RigidSolver::solverPass(void)
 	glUniform1i(shaderSolver.GetUniformLocation("rigidBodyTextureEdgeLength"), getRigidBodyTextureSizeLength());
 	glUniform1i(shaderSolver.GetUniformLocation("particleTextureEdgeLength"), getParticleTextureSideLength());
 	glUniform1i(shaderSolver.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
+	glUniform1i(shaderSolver.GetUniformLocation("spawnedObjects"), spawnedObjects);
 
 	glUniform1f(shaderSolver.GetUniformLocation("mass"), modelMass);
 	glUniform1f(shaderSolver.GetUniformLocation("deltaT"), time_span.count() / 1000.f); // FIXME: Is this really right?

@@ -15,6 +15,7 @@ uniform sampler2D particleForces;
 uniform int particlesPerModel;
 uniform int particleTextureEdgeLength;
 uniform int rigidBodyTextureEdgeLength;
+uniform int spawnedObjects;
 
 
 
@@ -34,6 +35,11 @@ void main() {
 	
 	ivec2 rigidBodyTexCoords = ivec2(gl_FragCoord.xy);
 	int rigidBodyID = rigidBodyTexCoords.y * rigidBodyTextureEdgeLength + rigidBodyTexCoords.x;
+
+	if (rigidBodyID >= spawnedObjects){
+		discard;
+		return;
+	}
 
 	vec3 linearMomentum = vec3(0.f);
 	vec3 angularMomentum = vec3(0.f);
