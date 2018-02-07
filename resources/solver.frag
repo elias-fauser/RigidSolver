@@ -1,7 +1,7 @@
 #version 330
 
 // Outputs
-layout(location = 0) out vec3 rigidBodyPosition;
+layout(location = 0) out vec4 rigidBodyPosition;
 layout(location = 1) out vec4 rigidBodyQuaternion;
 
 layout(pixel_center_integer) in vec4 gl_FragCoord;
@@ -106,7 +106,7 @@ void main() {
 
 	// FIXME: Is the quaternion calculation right?
 	// FIXME: Is it right to weight the velocity with deltaT? Thought because it is the position derivative with respect to time
-	rigidBodyPosition = rigidPosition + rigidLinearMomentum / mass * deltaT;
+	rigidBodyPosition = vec4(rigidPosition + rigidLinearMomentum / mass * deltaT, 1.f);
 	rigidBodyQuaternion = quaternionMultiplication(dq, rigidQuaternion);
 	
 }
