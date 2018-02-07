@@ -127,7 +127,7 @@ private:
 
 	// Textures
 	GLuint beautyDepthTex;
-	GLuint gridTex;
+	GLuint gridTex, gridDepthTex;
 
 	bool texSwitch = false; // false=1, true=2
 

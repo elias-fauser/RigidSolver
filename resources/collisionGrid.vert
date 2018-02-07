@@ -20,8 +20,8 @@ uniform float voxelLength;
 layout(location = 0) in vec4  in_position;
 
 // Outputs
-flat out int out_particleID;
-out vec4 out_particlePosition;
+flat out int particleID;
+out vec4 particlePosition;
 
 ivec2 idxTo2DParticleCoords(int idx){
 
@@ -35,11 +35,11 @@ ivec2 idxTo2DParticleCoords(int idx){
 void main() {    
 
 	// Determine which rigid Body we are and what particle
-	out_particleID = gl_InstanceID;
+	particleID = gl_InstanceID;
 
 	// Mapping of invocation id to particle coord
 	// Model transformed to consider any grid tranformations
-    out_particlePosition = modelMX * vec4(texelFetch(particlePositions, idxTo2DParticleCoords(out_particleID), 0).xyz, 1.f);
+    particlePosition = modelMX * vec4(texelFetch(particlePositions, idxTo2DParticleCoords(particleID), 0).xyz, 1.f);
 
-	gl_Position = projMX * out_particlePosition;
+	gl_Position = projMX * particlePosition;
 }

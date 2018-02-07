@@ -348,7 +348,7 @@ bool RigidSolver::Render(void) {
 		particleValuePass();
 
 		// Generate Lookup grid - Assign the particles to the voxels
-		// collisionGridPass();
+		collisionGridPass();
 
 		// Collision - Find collision and calculate forces
 		collisionPass();
@@ -655,12 +655,6 @@ bool RigidSolver::collisionGridPass(void)
 	// Clearing
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// glEnable(GL_PROGRAM_POINT_SIZE);
-	// glPointSize(5.0f);
-
-	// Viewporting to output texture size
-	glViewport(0, 0, sideLength, sideLength);
-
 	shaderCollisionGrid.Bind();
 
 	// Textures
@@ -689,18 +683,22 @@ bool RigidSolver::collisionGridPass(void)
 	glDrawBuffers(1, &attachments);
 
 	for (unsigned z = 0u; z < grid.getGridResolution().z; z++) {
-		
-		glEnable(GL_DEPTH_TEST);
-		glDisable(GL_STENCIL_TEST);
 
 		// Setting z Coordinate to be able to determine voxel layer
 		glUniform1i(shaderCollisionGrid.GetUniformLocation("z"), z);
 		glUniform1f(shaderCollisionGrid.GetUniformLocation("zCoord"), btmLeftFrontCorner.z + z * voxelLength);
 
-		glClearColor(0, 0, 0, 0);
+		// Set the current output layer
+		glFramebufferTextureLayer(GL_FRAMEBUFFER, GridIndiceAttachment, gridTex, 0, z);
+		glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, gridDepthTex, 0, z);
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glViewport(0, 0, sideLength, sideLength);
 
 		//=== 1 PASS
+		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_STENCIL_TEST);
+
 		glColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
 		glDepthFunc(GL_LESS);
 
@@ -747,7 +745,7 @@ bool RigidSolver::collisionGridPass(void)
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glDepthFunc(GL_LESS);
 	glDisable(GL_STENCIL_TEST);
-
+	glClearColor(bkColor[0], bkColor[1], bkColor[2], bkColor[3]);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	if (DEBUGGING) {
@@ -757,24 +755,22 @@ bool RigidSolver::collisionGridPass(void)
 		int arraySize = std::max(gridResolution.x, 16) * std::max(gridResolution.y, 256) * std::max(gridResolution.z, 256) * 4;
 		gridIndices = new GLuint[arraySize];
 
-		glBindTexture(GL_TEXTURE_3D, gridTex);
-		glGetTexImage(GL_TEXTURE_3D, 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, gridIndices);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, gridTex);
+		glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, gridIndices);
 		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/collisionGrid_gridIndices.txt"), gridIndices, arraySize, 4);
 
-		glBindTexture(GL_TEXTURE_2D, 0);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
 		delete[] gridIndices;
 	}
-
-	// Clearing
-	glClearColor(bkColor[0], bkColor[1], bkColor[2], bkColor[3]);
 
 	return false;
 }
 
 bool RigidSolver::collisionPass() {
 
-	glBindFramebuffer(GL_FRAMEBUFFER, particlesFBO);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, particlesFBO);
+	// glBindFramebuffer(GL_READ_FRAMEBUFFER, particlesFBO);
 
 	shaderCollision.Bind();
 
@@ -783,7 +779,7 @@ bool RigidSolver::collisionPass() {
 
 	// Textures
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_3D, gridTex);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, gridTex);
 	glUniform1i(shaderCollision.GetUniformLocation("collisionGrid"), 0);
 
 	glActiveTexture(GL_TEXTURE1);
@@ -1160,22 +1156,6 @@ bool RigidSolver::initSolverFBOs() {
 	result = result && initParticleFBO();
 	result = result && initGridFBO();
 
-	// Write out the result of the initialParticlePositions
-	if (DEBUGGING) {
-
-		int size = std::max(vaModel.getNumParticles() * 3, 1024);
-
-		float * data;
-		data = new float[size];
-		glBindTexture(GL_TEXTURE_1D, initialParticlePositionsTex);
-		glGetTexImage(GL_TEXTURE_1D, 0, GL_RGB, GL_FLOAT, data);
-		glBindTexture(GL_TEXTURE_1D, 0);
-
-		saveArrayToTXT(RigidSolver::debugDirectory + std::string("/textureRelativeParticlePositions.txt"), data, size, 3);
-
-		delete[] data;
-
-	}
 	return result;
 
 }
@@ -1262,7 +1242,7 @@ bool RigidSolver::reloadShaders(void)
 	shaderMomentaCalculation.CreateProgramFromFile(momentaVertShaderName.c_str(), momentaFragShaderName.c_str());
 	shaderParticleValues.CreateProgramFromFile(particleValuesVertShaderName.c_str(), particleValuesFragShaderName.c_str());
 	shaderCollision.CreateProgramFromFile(collisionVertShaderName.c_str(), collisionFragShaderName.c_str());
-	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridGeomShaderName.c_str() ,collisionGridFragShaderName.c_str());
+	shaderCollisionGrid.CreateProgramFromFile(collisionGridVertShaderName.c_str(), collisionGridFragShaderName.c_str());
 	shaderSolver.CreateProgramFromFile(solverVertShaderName.c_str(), solverFragShaderName.c_str());
 	
 	// The shaders which are used for depth peeling - for code development only
@@ -1315,11 +1295,32 @@ bool RigidSolver::updateGrid() {
 
 
 	// --------------------------------------------------
-	//  Depth Texture - Needed for the collision grid indice assignment
+	//  Depth/ Stencil Texture - Needed for the collision grid indice assignment
 	// --------------------------------------------------   
 
-	GLuint gridDepthTex;
 	glGenTextures(1, &gridDepthTex);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, gridDepthTex);
+
+	// Set the wrap and interpolation parameter
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH32F_STENCIL8, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, gridDepthTex, 0);
+
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+	// --------------------------------------------------
+	//  Grid Texture
+	// --------------------------------------------------   
+
+	// Assuming diameter particle = voxel edge length -> max 4x particles per voxel
+	glGenTextures(1, &gridTex);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, gridTex);
 
 	// Set the wrap and interpolation parameter
@@ -1330,32 +1331,11 @@ bool RigidSolver::updateGrid() {
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
-	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT32F, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-
-	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, gridDepthTex, 0);
-
-	// --------------------------------------------------
-	//  Grid Texture
-	// --------------------------------------------------   
-
-	// Assuming diameter particle = voxel edge length -> max 4x particles per voxel
-	glGenTextures(1, &gridTex);
-	glBindTexture(GL_TEXTURE_3D, gridTex);
-
-	// Set the wrap and interpolation parameter
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	// Creating grid - specifing with the minium size of (16, 256, 256): Overhead is just not used
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA16UI, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
+	glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA16UI, std::max(gridDimensions.x, 16), std::max(gridDimensions.y, 256), std::max(gridDimensions.z, 256), 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, nullptr);
 	
 	glFramebufferTexture(GL_FRAMEBUFFER, GridIndiceAttachment, gridTex, 0);
-	// glFramebufferTexture3D(GL_FRAMEBUFFER, GridIndiceAttachment, GL_TEXTURE_3D, gridTex, 0, 0);
 
-	glBindTexture(GL_TEXTURE_3D, 0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
 	return false;
 }

@@ -11,16 +11,15 @@ in vec4 particlePosition;
 
 void main() {
 
-	gridOut = uvec4(40);
-	return;
-
 	// Only considering particles which are in the current z layer
 	if (particlePosition.z >= zCoord && particlePosition.z < zCoord + voxelLength){
 
 		// Adding one to the ids so that idx=0 is the null index
 		int incrParticleID = particleID + 1;
+
 		// Write to RGBA 
-		gridOut = uvec4(incrParticleID, incrParticleID, incrParticleID, incrParticleID); // uvec4(particleID);
+		gridOut = uvec4(incrParticleID);
 	}
-	// else discard;
+	// Don't consider particles outside the current voxel slice
+	else discard;
 }
