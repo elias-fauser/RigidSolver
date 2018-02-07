@@ -102,8 +102,8 @@ private:
 
 	// Solver
 	unsigned int spawnedObjects = 1u; // Always starts with one instance
-	std::chrono::high_resolution_clock::time_point time = std::chrono::high_resolution_clock::now(), lastSpawn = time;
-	std::chrono::duration<double, std::milli> time_span;
+	std::chrono::high_resolution_clock::time_point time = std::chrono::high_resolution_clock::now(), lastSpawn = time, lastRender = time;
+	std::chrono::duration<double, std::milli> timeSpanRender, timeSpanSpawn;
 
 	// --------------------------------------------------
 	//  OpenGL variables

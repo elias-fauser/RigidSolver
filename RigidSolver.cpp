@@ -238,11 +238,11 @@ bool RigidSolver::Activate(void) {
 	//  Init
 	// --------------------------------------------------  
 
-	initSolverFBOs();
-
-	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+	glClearColor(0.f, 0.f, 0.f, 1.0f);
 	glClearDepth(1.0);
 	glEnable(GL_DEPTH_TEST);
+
+	resetSimulation();
 
 	// --------------------------------------------------
 	//  Query opengl limits just to be sure
@@ -331,11 +331,14 @@ bool RigidSolver::Render(void) {
 	if (solverStatus && modelFiles.GetValue() != NULL) {
 		// Get current time and eventually spawn a new particle
 		time = std::chrono::high_resolution_clock::now();
-		time_span = time - lastSpawn;
-		if (time_span.count() * 1000  >= spawnTime && spawnedObjects <= numRigidBodies) {
-			spawnedObjects = std::max((int)(spawnedObjects + 1), MAX_NUMBER_OF_RIGID_BODIES);
+		timeSpanRender = std::min(std::chrono::duration<double, std::milli>(time - lastRender), std::chrono::duration<double, std::milli>(416));
+		timeSpanSpawn = time - lastSpawn;
+		if (timeSpanSpawn.count() / 1000.f  >= spawnTime && spawnedObjects <= numRigidBodies) {
+			spawnedObjects = std::min((int)(spawnedObjects + 1), MAX_NUMBER_OF_RIGID_BODIES);
+			lastSpawn = time;
 		}
-		lastSpawn = time;
+		lastRender = time;
+		
 	}
 
 	// --------------------------------------------------
@@ -802,7 +805,7 @@ bool RigidSolver::collisionPass() {
 	// Uniforms
 	glUniform1f(shaderCollision.GetUniformLocation("gravity"), gravity);
 	glUniform1f(shaderCollision.GetUniformLocation("mass"), modelMass);
-	glUniform1f(shaderCollision.GetUniformLocation("deltaT"), time_span.count() / 1000.f);
+	glUniform1f(shaderCollision.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f);
 	glUniform1f(shaderCollision.GetUniformLocation("voxelLength"), grid.getVoxelLength());
 	glUniform1f(shaderCollision.GetUniformLocation("particleDiameter"), particleSize);
 	glUniform1f(shaderCollision.GetUniformLocation("dampingCoefficient"), dampingCoefficient);
@@ -866,6 +869,9 @@ bool RigidSolver::momentaPass(void)
 	glUniform1i(shaderMomentaCalculation.GetUniformLocation("rigidBodyTextureEdgeLength"), rigidBodyTextureLength);
 	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particleTextureEdgeLength"), getParticleTextureSideLength());
 	glUniform1i(shaderMomentaCalculation.GetUniformLocation("particlesPerModel"), vaModel.getNumParticles());
+	glUniform1i(shaderMomentaCalculation.GetUniformLocation("spawnedObjects"), spawnedObjects);
+	
+	glUniform1f(shaderMomentaCalculation.GetUniformLocation("deltaT"), timeSpanRender.count() / 1000.f);
 
 	// Activate the input textures
 	glActiveTexture(GL_TEXTURE0);
@@ -1183,10 +1189,13 @@ bool RigidSolver::initGridFBO(void)
 bool RigidSolver::resetSimulation(void)
 {
 	solverStatus = true;
-	spawnedObjects = 0;
-	lastSpawn = std::chrono::high_resolution_clock::now();
+	spawnedObjects = 1;
 
 	initSolverFBOs();
+
+	time = std::chrono::high_resolution_clock::now();
+	lastSpawn = time;
+	lastRender = time;
 
 	return true;
 }
