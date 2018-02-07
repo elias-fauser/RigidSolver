@@ -8,7 +8,7 @@
 #include "SolverModel.h"
 
 // Global variables
-const bool DEBUGGING = true;
+const bool DEBUGGING = false;
 
 // This class is exported from the RigidSolver.dll
 class OGL4COREPLUGIN_API RigidSolver : public RenderPlugin {
