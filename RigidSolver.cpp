@@ -104,7 +104,7 @@ OGL4COREPLUGIN_API RenderPlugin* OGL4COREPLUGIN_CALL CreateInstance(COGL4CoreAPI
 }
 
 RigidSolver::RigidSolver(COGL4CoreAPI *Api) : RenderPlugin(Api) {
-    this->myName = "RigidSolver";
+    this->myName = "PCVC/RigidSolver";
     this->myDescription = "Rigid Solver which allows the usage of custom objects as instances";
 
 	viewMX = glm::mat4(1.f);
