@@ -50,49 +50,68 @@ SolverGrid::~SolverGrid()
 {
 }
 
+/** @brief Returns the transformation matrix of the grid
+* @returns Transformation matrix
+*/
 glm::mat4 SolverGrid::getModelMatrix(void) const
 {
 	return modelMX;
 }
 
+/** @brief Translates the grid by the given (x,y,z) translation
+*/
 void SolverGrid::translate(glm::vec3 translation)
 {
 	modelMX = glm::translate(modelMX, translation);
 }
 
+/** @brief Translates the grid by the given x,y,z translation
+*/
 void SolverGrid::translate(float x, float y, float z)
 {
 	this->translate(glm::vec3(x, y, z));
 }
 
+/** @brief Scales the grid by the given (x,y,z) translation
+*/
 void SolverGrid::scale(glm::vec3 scaling)
 {
 	modelMX = glm::scale(modelMX, scaling);
 }
 
+/** @brief Returns the current set voxel length on the grid
+*/
 float SolverGrid::getVoxelLength(void) const
 {
 	return voxelLength;
 }
 
+/** @brief Sets the current voxel length on the grid
+*/
 void SolverGrid::setVoxelLength(float size)
 {
 	voxelLength = size;
 }
 
+/**
+* @brief Returns the corner which the largest coordinates - aka TopRightBack
+*/
 glm::vec3 SolverGrid::getTopRightBack(void) const
 {
 	glm::vec4 translated = this->modelMX * glm::vec4(topRightBack, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
 }
 
+/**
+* @brief Returns the corner which the smallest coordinates - aka BtmLeftFront
+*/
 glm::vec3 SolverGrid::getBtmLeftFront(void) const
 {
 	glm::vec4 translated = this->modelMX * glm::vec4(btmLeftFront, 1.0f);
 	return glm::vec3(translated.x, translated.y, translated.z);
 }
 /**
-* \brief Returns the size of the grid
+* @brief Returns the size of the grid
 *
 */
 glm::vec3 SolverGrid::getGridSize(void) const
@@ -101,7 +120,7 @@ glm::vec3 SolverGrid::getGridSize(void) const
 }
 
 /**
-* \brief Returns the resolution - how many voxel per axis - for each axis
+* @brief Returns the resolution - how many voxel per axis - for each axis
 *
 */
 glm::ivec3 SolverGrid::getGridResolution(void) const
@@ -109,11 +128,15 @@ glm::ivec3 SolverGrid::getGridResolution(void) const
 	return glm::ivec3(getGridSize() / getVoxelLength());
 }
 
+/** @brief Returns the emitters initial velocity
+*/
 glm::vec3 SolverGrid::getEmitterVelocity(void)
 {
 	return emitterVelocity;
 }
 
+/** @brief Returns the emitter position
+*/
 glm::vec3 SolverGrid::getEmitterPosition(void)
 {
 	return emitterPosition;
