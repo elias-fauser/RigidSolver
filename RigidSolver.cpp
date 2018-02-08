@@ -521,6 +521,10 @@ bool RigidSolver::loadModel(float * vertices, int * indices, float * texCoords, 
 //  RENDER PASSES
 // --------------------------------------------------   
 
+/**
+* @brief Render pass write the particlePostitions, relativePositions and particleVelocities to texture
+* It uses the rigid body position and quaternion to determine the values for each particle
+*/
 bool RigidSolver::particleValuePass(void)
 {
 
@@ -566,16 +570,6 @@ bool RigidSolver::particleValuePass(void)
 	int sideLength = getParticleTextureSideLength();
 	if (sideLength == 0) return false;
 
-	/*
-	projMX = glm::ortho(0, sideLength, 0, sideLength);
-
-	// Clearing
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	// Viewporting to output texture size
-	glViewport(0, 0, sideLength, sideLength);
-	*/
-
 	// Define the two outputs
 	GLuint attachments[] = { ParticlePositionAttachment, ParticleVelocityAttachment, ParticleRelativePositionAttachment};
 	glDrawBuffers(3, attachments);
@@ -597,7 +591,6 @@ bool RigidSolver::particleValuePass(void)
 
 	vaVertex.Bind();
 	drawAbstractData(sideLength, sideLength, shaderParticleValues, true);
-	// glDrawArraysInstanced(GL_POINTS, 0, 1, spawnedObjects * vaModel.getNumParticles());
 	vaVertex.Release();
 
 	shaderParticleValues.Release();
@@ -631,6 +624,8 @@ bool RigidSolver::particleValuePass(void)
 	return false;
 }
 
+/** @brief The collision grid pass write the particle indices into the 3D voxel grid.
+*/
 bool RigidSolver::collisionGridPass(void)
 {
 
@@ -774,6 +769,9 @@ bool RigidSolver::collisionGridPass(void)
 	return false;
 }
 
+/** @brief The collision pass determines the forces for each particle by applying gravity and the forces inflicted by collisions with
+* other particles
+*/
 bool RigidSolver::collisionPass() {
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, particlesFBO);
@@ -861,6 +859,9 @@ bool RigidSolver::collisionPass() {
 	return false;
 }
 
+/** @brief Based on the forces of the collision pass this momenta pass calculates the sum of the forces of the particles belonging
+* to one rigid body. It calculates the linear and angular momentum from this
+*/
 bool RigidSolver::momentaPass(void)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, rigidBodyFBO);
@@ -928,6 +929,8 @@ bool RigidSolver::momentaPass(void)
 	return false;
 }
 
+/** @brief The solver pass calculates the new rigid body positions and quaternions from the momenta
+*/
 bool RigidSolver::solverPass(void)
 {
 
@@ -1031,7 +1034,9 @@ bool RigidSolver::solverPass(void)
 	return false;
 }
 
-
+/** @brief The beauty pass read the rigid body positions and quaternions from the textures and applies them to the model instances
+* Also draws the ground plane and calculates blinn-phong shading. This pass uses the default framebuffer
+*/
 bool RigidSolver::beautyPass(void) {
 
 	// Set up the proj Matrices
@@ -1148,6 +1153,9 @@ bool RigidSolver::initSolverFBOs() {
 
 }
 
+/**
+* @brief Subinitialization function for the rigid body fbo
+*/
 bool RigidSolver::initRigidFBO(void)
 {
 	
@@ -1166,6 +1174,9 @@ bool RigidSolver::initRigidFBO(void)
 	return result;
 }
 
+/**
+* @brief Subinitialization function for the particle fbo
+*/
 bool RigidSolver::initParticleFBO(void)
 {
 	if (glIsFramebuffer(particlesFBO)) glDeleteFramebuffers(1, &particlesFBO);
@@ -1183,6 +1194,9 @@ bool RigidSolver::initParticleFBO(void)
  	return result;
 }
 
+/**
+* @brief Subinitialization function for the grid fbo
+*/
 bool RigidSolver::initGridFBO(void)
 {
 	if (glIsFramebuffer(gridFBO)) glDeleteFramebuffers(1, &gridFBO);
@@ -1200,6 +1214,9 @@ bool RigidSolver::initGridFBO(void)
 	return result;
 }
 
+/**
+* @brief This function resets the simulation to its initial state
+*/
 bool RigidSolver::resetSimulation(void)
 {
 	solverStatus = true;
@@ -1214,18 +1231,31 @@ bool RigidSolver::resetSimulation(void)
 	return true;
 }
 
+/**
+* @brief Stops the evaluation of the simulation but continues drawing
+*/
 bool RigidSolver::stopSimulation(void)
 {
+	time = std::chrono::high_resolution_clock::now();
+	lastSpawn = time;
+	lastRender = time;
+
 	solverStatus = false;
 	return true;
 }
 
+/**
+* @brief Continues the simulation
+*/
 bool RigidSolver::continueSimulation(void)
 {
 	solverStatus = true;
 	return true;
 }
 
+/**
+* @brief Convenience function which encapsulates all the shader initializations
+*/
 bool RigidSolver::reloadShaders(void)
 {
 	// FIXME: Creates error on reload trigger
@@ -1242,6 +1272,9 @@ bool RigidSolver::reloadShaders(void)
 	return true;
 }
 
+/**
+* @brief Particle texture setup
+*/
 bool RigidSolver::updateParticles() {
 	
 	// Texture must be numRegidBodies * numParticlesPerRigidBody long
@@ -1279,6 +1312,9 @@ bool RigidSolver::updateParticles() {
 	return true;
 }
 
+/**
+* @brief Grid texture setup
+*/
 bool RigidSolver::updateGrid() {
 	// Must be done on init or when voxel size changes
 
@@ -1331,6 +1367,9 @@ bool RigidSolver::updateGrid() {
 	return false;
 }
 
+/**
+* @brief Rigid Body texture setup
+*/
 bool RigidSolver::updateRigidBodies(void)
 {
 
@@ -1486,11 +1525,21 @@ void RigidSolver::fileChanged(FileEnumVar<RigidSolver> &var) {
 	}
 }
 
+/**
+* @brief Callback function which is invoked the partricle/ voxelLength is changed
+*/
 void RigidSolver::particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var)
 {
-	
+	grid.setVoxelLength(var.GetValue());
+
+	vaModel.createParticles(&grid);
+
+	resetSimulation();
 }
 
+/**
+* @brief Callback function for the reset button
+*/
 void RigidSolver::resetSimulationTriggered(ButtonVar<RigidSolver> &button) {
 
 	resetSimulation();
@@ -1500,6 +1549,17 @@ void RigidSolver::resetSimulationTriggered(ButtonVar<RigidSolver> &button) {
 //  HELPERS
 // --------------------------------------------------   
 
+/**
+* @brief Creates a texture with the given parameters
+* @param outID			The texture id variable to write the texture id to
+* @param internalFormat	The Internal format which specifies the storage on the GPU
+* @param format			Enum which specifies the texture formate (GL_RGB, GL_RED, ...)
+* @param type			The textures channel type (GL_FLOAT, GL_UNSIGNED_INT, ...)
+* @param filter			One of OpenGLs texture filters (GL_NEAREST, GL_LINEAR, ...)
+* @param width			Texture width
+* @param height			Texture height
+* @param data			pointer to the texture initial data
+*/
 void RigidSolver::createFBOTexture(GLuint &outID, const GLenum internalFormat, const GLenum format, const GLenum type, GLint filter, int width, int height, void * data) {
 
 	glGenTextures(1, &outID);
@@ -1521,6 +1581,10 @@ void RigidSolver::createFBOTexture(GLuint &outID, const GLenum internalFormat, c
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+/**
+* @brief Checks for the FBO status and returns true if the buffer is complete otherwise false
+* @param fboName	A name specifier which is used in the status prints and helps identifying the FBO
+*/
 bool RigidSolver::checkFBOStatus(std::string fboName) {
 	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	bool r = false;
@@ -1561,16 +1625,27 @@ bool RigidSolver::checkFBOStatus(std::string fboName) {
 	return r;
 }
 
+/**
+* @brief Returns the current texture edge lenght for the rigid body textures
+* @returns Int with size of texture
+*/
 int RigidSolver::getRigidBodyTextureSizeLength(void)
 {
 	return int(std::floor(std::sqrt(MAX_NUMBER_OF_RIGID_BODIES)));
 }
 
+/**
+* @brief Returns the current texture edge lenght for the particle textures
+* @returns Int with size of texture
+*/
 int RigidSolver::getParticleTextureSideLength(void)
 {
 	return std::ceil(std::sqrt(getRigidBodyTextureSizeLength() * std::max(vaModel.getNumParticles(), 0)));
 }
 
+/**
+* DEPRECATED
+*/
 bool RigidSolver::saveFramebufferPNG(const std::string filename, GLuint texture, int width, int height, GLenum format, GLenum type)
 {
 	int channels;
@@ -1630,6 +1705,9 @@ bool RigidSolver::saveFramebufferPNG(const std::string filename, GLuint texture,
 	else return true;
 }
 
+/**
+* DEPRECATED
+*/
 bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int width, int height)
 {
 
@@ -1667,6 +1745,17 @@ bool RigidSolver::saveDepthTexturePNG(std::string filename, GLuint texture, int 
 	else return true;
 }
 
+/**
+* @brief Saves a BMP picture at the debugging location for the given texture
+* @param filename		The filename string. Just the base name with extension
+* @param texture		GLuint which identifies the texture
+* @param width			The width of the texture
+* @param height			The height of the texture
+* @param channels		The number of channels the texture has
+* @param format			Format to retrieve the texture
+* @param type			Type to retrieve the texture
+* @returns Bool of succes of operation
+*/
 bool RigidSolver::saveTextureToBMP(std::string filenname, GLuint texture, int width, int height, int channels, GLenum format, GLenum type)
 {
 
@@ -1705,7 +1794,7 @@ bool RigidSolver::saveTextureToBMP(std::string filenname, GLuint texture, int wi
 	
 }
 
-/** \brief Draws data into a texture using a window filling quad
+/** @brief Draws data into a texture using a window filling quad
 * The shader must be bound in the surrounding code!!
 
 This would look something like:
