@@ -30,7 +30,8 @@ SolverModel::~SolverModel()
 }
 
 /**
- *	Uses the depth peel algorithm to create the particle positions for this model
+ * @brief Uses the depth peel algorithm to create the particle positions for this model
+ * @param grid		Pointer to the currently used grid instance
  */
 bool SolverModel::createParticles(const SolverGrid * grid)
 {
@@ -356,9 +357,9 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 }
 
 /** 
-* \brief Returns the number of particles for the objects which were determined during particle creation
+* @brief Returns the number of particles for the objects which were determined during particle creation
 *
-* \returns Number of particles as int
+* @returns Number of particles as int
 */
 int SolverModel::getNumParticles(void)
 {
@@ -366,47 +367,69 @@ int SolverModel::getNumParticles(void)
 }
 
 /**
-* \brief Returns a pointer to the models particles positions. The number of particles can be queried with `getNumParticles()`
-* \note The positions are a vector of size 3, relative to the models center of mass
+* @brief Returns a pointer to the models particles positions. The number of particles can be queried with `getNumParticles()`
+* @note The positions are a vector of size 3, relative to the models center of mass
 *
-* \returns Number of particles as int
+* @returns Number of particles as int
 */
 float const * SolverModel::getParticlePositions(void)
 {
 	return particlePositions;
 }
 
+/**
+* @brief Sets the inertia tensor
+* @param tensor		The inertia tensor
+*/
 void SolverModel::setInertiaTensor(glm::mat3 tensor)
 {
 	inertiaTensor = tensor;
 }
 
+/**
+* @brief Gets the inertia tensor
+*/
 glm::mat3 SolverModel::getInertiaTensor(void)
 {
 	return inertiaTensor;
 }
 
+/**
+* @brief Returns the corner which the largest coordinates - aka TopRightBack
+*/
 glm::vec3 SolverModel::getTopRightBack(void) const
 {
 	return topRightBack;
 }
 
+/**
+* @brief Returns the corner which the smallest coordinates - aka BtmLeftFront
+*/
 glm::vec3 SolverModel::getBtmLeftFront(void) const
 {
 	return btmLeftFront;
 }
 
+/**
+* @brief Returns the current grid size as width, height, depth
+*/
 glm::vec3 SolverModel::getModelSize(void) const
 {
 	return glm::abs(getBtmLeftFront() - getTopRightBack());
 }
 
+/**
+* @brief Sets the bounding box of the grid
+*/
 void SolverModel::setBoundingBox(float xl, float xr, float yb, float yt, float zn, float zf)
 {
 	btmLeftFront = glm::vec3(xl, yb, zn);
 	topRightBack = glm::vec3(xr, yt, zf);
 }
 
+/**
+* @brief Convenience function which encapsulates all the shader initializations
+*/
 bool SolverModel::reloadShaders(void)
 {
 	// Create the shader
@@ -423,6 +446,16 @@ bool SolverModel::reloadShaders(void)
 	return true;
 }
 
+/**
+* @brief Function which calculate a one dimensional index from the given 3D index
+* @param x		X position
+* @param y		Y position
+* @param z		Z position
+* @param max_x	The span in X
+* @param max_y	The span in Y
+* @param offset	Number of channels
+* @returns		Integer index
+*/
 unsigned int SolverModel::linearIndexFromCoordinate(float x, float y, float z, int max_x, int max_y, int offset)
 {
 	int b = max_x;
