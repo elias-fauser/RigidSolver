@@ -82,7 +82,7 @@ void main() {
 
 	// Fill all the out variables needed
 	ivec2 rigidBodyCoords = idxTo2DRigidBodyCoords(rigidBodyID);
-	vec3 rigidPosition = texelFetch(rigidBodyPositions, rigidBodyCoords, 0).xyz;
+	vec4 rigidPosition = texelFetch(rigidBodyPositions, rigidBodyCoords, 0);
 	vec4 rigidQuaternion = texelFetch(rigidBodyQuaternions, rigidBodyCoords, 0);
 	vec3 rigidAngularMomentum = texelFetch(rigidBodyAngularMomentums, rigidBodyCoords, 0).xyz;
 	vec3 rigidLinearMomentum = texelFetch(rigidBodyLinearMomentums, rigidBodyCoords, 0).xyz;
@@ -106,7 +106,7 @@ void main() {
 
 	// FIXME: Is the quaternion calculation right?
 	// FIXME: Is it right to weight the velocity with deltaT? Thought because it is the position derivative with respect to time
-	rigidBodyPosition = vec4(rigidPosition + rigidLinearMomentum / mass * deltaT, 1.f);
+	rigidBodyPosition = rigidPosition + vec4(rigidLinearMomentum / mass * deltaT, 1.f);
 	rigidBodyQuaternion = quaternionMultiplication(dq, rigidQuaternion);
 	
 }
