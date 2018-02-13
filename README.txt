@@ -46,6 +46,10 @@ With the loaded model, simulation and rendering is performed in six steps:
 	* solverPass(): Calculating the new position and quaternion based on the previously computed momenta
 	* beautyPass(): Rendering the rigid bodies
 
+The FBOs - there are three of them: one for the particles, one for the rigid bodies and one for the collision grid - are initialized in the
+initSolverFBOs() function which subsequently calls the underlying updateParticles(), updateGrid() and updateRigidBodies() function which contain
+the actual texture creations.
+
 Properties:
 ***********
 	* Maximum number of rigid bodies defined by 128x128 texture = 16384

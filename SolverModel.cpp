@@ -2,6 +2,7 @@
 #include "RigidSolver.h"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/ext.hpp"
+#include "glm/glm.hpp"
 #include <cstring>
 #include <vector>
 #include "soil.h"
@@ -64,7 +65,8 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	glm::mat4 modelMatrix = grid->getModelMatrix();
 	// float scaling = std::min(std::min(gridSize.x / modelSize.x, gridSize.y / modelSize.y), gridSize.z / modelSize.z);
 	float scaling = 1.f;
-	modelMatrix = glm::scale(modelMatrix, scaling, scaling, scaling);
+	//modelMatrix = glm::scale(modelMatrix, scaling, scaling, scaling);
+	modelMatrix = glm::scale(modelMatrix, glm::vec3(scaling));
 	
 	// --------------------------------------------------
 	//  Creating the FBO and depth peeling textures
@@ -211,7 +213,7 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 
 	glDisable(GL_DEPTH_TEST);
 
-	for (unsigned int z = 0u; z < gridResolution.x; z++) {
+	for (int z = 0u; z < gridResolution.x; z++) {
 
 		// Add a uniform for the current depth
 		// TODO: Check if this is really right. I need an z buffer value in between [-1, 1] here I think
@@ -259,13 +261,13 @@ bool SolverModel::createParticles(const SolverGrid * grid)
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
 	// Get the voxels which are particles and determine their positions
-	for (unsigned int x = 0u; x < gridResolution.x; x++) {
-		for (unsigned int y = 0u; y < gridResolution.y; y++) {
-			for (unsigned int z = 0u; z < gridResolution.z; z++) {
+	for (int x = 0u; x < gridResolution.x; x++) {
+		for (int y = 0u; y < gridResolution.y; y++) {
+			for (int z = 0u; z < gridResolution.z; z++) {
 				int idx = linearIndexFromCoordinate(x, y, z, gridResolution.x, gridResolution.y, 1);
 
 				float r = gridData[idx];
-				float halfVoxelLength = 0.5 * voxelLength;
+				float halfVoxelLength = 0.5f * voxelLength;
 
 				if (r > 0.5) {
 					// TODO: Is this the right corner?

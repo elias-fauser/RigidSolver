@@ -351,6 +351,8 @@ bool RigidSolver::Render(void) {
 
 	if (solverStatus && modelFiles.GetValue() != NULL && vaModel.getNumParticles() > 0) {
 
+		glDisable(GL_DITHER);
+
 		// Physical values - Determine rigid positions and particle attributes
 		particleValuePass();
 
@@ -358,13 +360,15 @@ bool RigidSolver::Render(void) {
 		collisionGridPass();
 
 		// Collision - Find collision and calculate forces
-		collisionPass();
+ 		collisionPass();
 
 		// Particle positions - Determine the momenta and quaternions
 		momentaPass();
 
 		// Calculate the new rigid body positions
 		solverPass();
+
+		glEnable(GL_DITHER);
 
 	}
 
@@ -1040,7 +1044,7 @@ bool RigidSolver::solverPass(void)
 bool RigidSolver::beautyPass(void) {
 
 	// Set up the proj Matrices
-	projMX = glm::perspective(static_cast<float>(fovY), aspectRatio, 0.001f, 100.f);
+	projMX = glm::perspective(glm::radians(static_cast<float>(fovY)), aspectRatio, 0.001f, 100.f);
 
 	// Clearing
 	glClearColor(0.f, 0.f, 0.f, 1.f);
@@ -1070,7 +1074,7 @@ bool RigidSolver::beautyPass(void) {
 	glUniformMatrix4fv(shaderBeauty.GetUniformLocation("modelMX"), 1, GL_FALSE, glm::value_ptr(grid.getModelMatrix()));
 	glUniformMatrix4fv(shaderBeauty.GetUniformLocation("invModelViewMX"), 1, GL_FALSE, glm::value_ptr(glm::inverse(viewMX * grid.getModelMatrix())));
 
-	glUniform3fv(shaderBeauty.GetUniformLocation("lightDirection"), 1, glm::value_ptr(glm::vec3(0.f, -1.f, 0.f)));
+	glUniform3fv(shaderBeauty.GetUniformLocation("lightDirection"), 1, glm::value_ptr(glm::vec3(0.3f, -1.f, 0.3f)));
 
 	glUniform3fv(shaderBeauty.GetUniformLocation("ambient"), 1, glm::value_ptr(glm::vec3(1.f, 1.f, 1.f)));
 	glUniform3fv(shaderBeauty.GetUniformLocation("diffuse"), 1, glm::value_ptr(glm::vec3(.8f, .8f, .8f)));
@@ -1532,7 +1536,7 @@ void RigidSolver::particleSizeChanged(APIVar<RigidSolver, FloatVarPolicy> &var)
 {
 	grid.setVoxelLength(var.GetValue());
 
-	vaModel.createParticles(&grid);
+	if (vaModel.GetNumVertices() > 0) vaModel.createParticles(&grid);
 
 	resetSimulation();
 }
