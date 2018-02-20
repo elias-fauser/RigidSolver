@@ -8,7 +8,7 @@ __Feel free to fork the project to fix the code. I currently don't have time to 
 
 ## Disclaimer
 
-This project was successfully submitted in the practicle course Visual Computing at the Univerity of Stuttgart and is not allowed to be used or submitted as whole or in parts at any other educational facility! 
+This project was successfully submitted in the Practical Course Visual Computing at the University of Stuttgart and is not allowed to be used or submitted as whole or in parts at any other educational facility! 
 
 ## Getting started
 
